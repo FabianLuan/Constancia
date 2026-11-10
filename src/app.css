@@ -1,5 +1,8 @@
 /* Layout: bitácora de entrenamiento. Barra de navegación abajo en celular, riel a la izquierda en escritorio; una columna de contenido, cuadrículas densas con desplazamiento propio. */
+/* Movimiento: 100/150/200/300 ms, ease-out al entrar; solo transform y opacity. */
 :root{
+  --m100:100ms; --m150:150ms; --m200:200ms; --m300:300ms;
+  --ease-out:cubic-bezier(.16,1,.3,1); --ease-io:cubic-bezier(.645,.045,.355,1);
   --bg:#EDF0EC; --surface:#FBFCFA; --surface2:#E3E8E2; --line:#D3DAD2;
   --ink:#141C17; --ink2:#4C5A51; --ink3:#7C897F;
   --accent:#17734A; --accent-ink:#FFFFFF; --accent-soft:#D5EBDD;
@@ -224,3 +227,49 @@ textarea.inp{min-height:76px;resize:vertical}
 @media (max-width:520px){.mgrid .c{width:26px;height:26px;border-radius:7px}.tiles{grid-template-columns:1fr 1fr}.wgrid th.hn{min-width:92px;max-width:104px;padding-left:8px}.wgrid td,.wgrid thead th{padding:3px 1.5px}.wgrid .c{width:30px;height:30px}.wgrid .fq{display:none}}
 @media (max-width:420px){.hrow{grid-template-columns:minmax(0,1fr) auto auto}.hrow .sb{display:none}.stats4 b{font-size:1rem}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* ===== Mezcla A + B: tarjeta de racha ===== */
+.card.hero{grid-template-columns:auto minmax(0,1fr);background:radial-gradient(120% 90% at 0% 0%,color-mix(in oklab,var(--hero) 70%,#3a7a55) 0%,var(--hero) 60%)}
+.flamebox{position:relative;width:96px;display:flex;flex-direction:column;align-items:center}
+.flamebox svg{width:58px;height:70px;overflow:visible}
+.flamebox .f1{fill:url(#flg);transform-origin:50% 100%}
+.flamebox .f2{fill:#FFE7A3;opacity:.9}
+.flamebox.cold svg{filter:grayscale(1);opacity:.45}
+.flamebox b{font:800 2.5rem/1 var(--display);letter-spacing:-.04em;margin-top:-4px;color:var(--hero-ink)}
+.flamebox small{font-size:.7rem;opacity:.75;white-space:nowrap}
+.flamebox.up .f1{animation:flare 420ms var(--ease-out)}
+@keyframes flare{40%{transform:scale(1.14,1.2)}}
+.spark{position:absolute;left:50%;top:34px;width:6px;height:6px;margin:-3px;border-radius:50%;background:#FFB23F;pointer-events:none;animation:spark 560ms var(--ease-out) forwards}
+@keyframes spark{to{transform:translate(var(--x),var(--y)) scale(.2);opacity:0}}
+.hb{display:flex;flex-direction:column;gap:10px;min-width:0}
+.dprog{display:flex;align-items:center;gap:10px;font-size:.82rem;font-weight:600}
+.dprog .bar{height:10px;border-radius:5px;background:var(--hero-track)}
+.dprog .bar i{width:100%;background:linear-gradient(90deg,#FF6B3D,#FFC24F);transform-origin:left;transition:transform var(--m300) var(--ease-io)}
+.hero .xp{margin-top:0}
+/* check: aparece con escala y desenfoque; nombre se tacha con una línea que crece */
+.check{transition:background-color var(--m150) ease,border-color var(--m150) ease,transform var(--m150) var(--ease-out)}
+.check:active,.step button:active,.btn:active,.c:active,.tab:active{transform:scale(.94)}
+.btn,.step button,.c,.tab{transition:transform var(--m150) var(--ease-out),background-color var(--m150) ease}
+.check svg{opacity:0;transform:scale(.6);filter:blur(2px);transition:opacity var(--m150) var(--ease-out),transform var(--m200) var(--ease-out),filter var(--m150) var(--ease-out)}
+.check.on svg{opacity:1;transform:none;filter:none;animation:none}
+.row.is-done .name{text-decoration:none}
+.row .name .nt{position:relative}
+.row .name .nt::after{content:"";position:absolute;left:0;right:0;top:55%;height:1.5px;background:color-mix(in oklab,var(--h) 70%,transparent);transform:scaleX(0);transform-origin:left;transition:transform var(--m200) var(--ease-out)}
+.row.is-done .name .nt::after{transform:scaleX(1)}
+.c svg{transition:transform var(--m200) var(--ease-out)}
+.c.done.just svg{animation:pop var(--m200) var(--ease-out)}
+@keyframes pop{from{transform:scale(.5);opacity:0}}
+.sheet{animation:sheetin var(--m300) var(--ease-out)}
+.scrim{animation:fade var(--m200) var(--ease-out)}
+@keyframes sheetin{from{transform:translateY(24px);opacity:0}}
+@keyframes fade{from{opacity:0}}
+@media (max-width:420px){.flamebox{width:80px}.flamebox b{font-size:2.1rem}}
+@media (prefers-reduced-motion:reduce){.flamebox.up .f1,.spark,.sheet,.scrim,.c.done.just svg,.row.just .check.on svg,.row.just .nt::after,.dprog .bar i{animation:none}.check svg,.row .name .nt::after,.dprog .bar i{transition:none}}
+.row.just .check.on svg{animation:ckin var(--m200) var(--ease-out)}
+@keyframes ckin{from{opacity:0;transform:scale(.6);filter:blur(2px)}}
+.row.just.is-done .name .nt::after{animation:strike var(--m200) var(--ease-out)}
+@keyframes strike{from{transform:scaleX(0)}}
+.row.just .check.on{animation:press var(--m150) var(--ease-out)}
+@keyframes press{from{transform:scale(.9)}}
+.dprog .bar i{animation:grow var(--m300) var(--ease-io)}
+@keyframes grow{from{transform:scaleX(var(--from))}}

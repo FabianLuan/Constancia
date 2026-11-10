@@ -118,6 +118,19 @@ function dayPct(d) {
   }
   return { g, k, p: g ? k / g : null };
 }
+// Racha de días: días seguidos cumpliendo al menos la mitad de lo programado. Hoy cuenta solo cuando ya llegó a la mitad.
+function dayStreak() {
+  if (cache.has('ds')) return cache.get('ds');
+  const t = today(), first = habits().reduce((m, h) => h.createdAt < m ? h.createdAt : m, t);
+  let n = 0;
+  for (let d = t; d >= first; d = add(d, -1)) {
+    const p = dayPct(d);
+    if (!p.g) continue;
+    if (p.p >= .5) n++; else if (d !== t) break;
+  }
+  cache.set('ds', n); return n;
+}
+const FLAME = '<svg viewBox="0 0 86 104" aria-hidden="true"><defs><linearGradient id="flg" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#FF6B3D"/><stop offset="1" stop-color="#FFC24F"/></linearGradient></defs><path class="f1" d="M43 4c6 18 30 30 30 58a30 30 0 0 1-60 0c0-14 8-22 12-30 2 8 6 12 10 14-2-16 2-30 8-42z"/><path class="f2" d="M43 52c4 8 14 14 14 26a14 14 0 0 1-28 0c0-8 6-12 8-18 2 4 4 6 6 6z"/></svg>';
 /* ---------- juego: XP, niveles, logros ---------- */
 const TITLES = ['Aprendiz', 'Constante', 'Enfocado', 'Disciplinado', 'Imparable', 'Forjado', 'Maestro', 'Leyenda'];
 const lvlAt = n => 100 * n * (n - 1) / 2;
@@ -160,20 +173,33 @@ function setEntry(h, d, patch) {
   if (!Object.keys(day).length) delete S.log[d];
 }
 function mutate(fn) {
-  const g0 = game(), un0 = new Set(g0.A.filter(a => a.ok).map(a => a.n));
+  const g0 = game(), un0 = new Set(g0.A.filter(a => a.ok).map(a => a.n)), t = today(), p0 = dayPct(t);
   fn(); save();
+  const p1 = dayPct(t), full = p1.g && p1.k === p1.g && !(p0.g && p0.k === p0.g);
   const g1 = game();
   if (g1.xp > g0.xp) toast(`+${g1.xp - g0.xp} XP`);
   g1.A.filter(a => a.ok && !un0.has(a.n)).forEach(a => toast(`${a.e} Logro: ${a.n}`));
   if (g1.level > g0.level) toast(`⬆️ Nivel ${g1.level} · ${g1.title}`);
   render();
+  if (full) celebrate();
+}
+function celebrate() {
+  toast('🔥 Día completo');
+  const f = document.querySelector('.flamebox'); if (!f || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  f.classList.remove('up'); void f.offsetWidth; f.classList.add('up');
+  for (let k = 0; k < 16; k++) {
+    const s = document.createElement('i'); s.className = 'spark'; const a = Math.PI * 2 * k / 16, r = 56 + Math.random() * 34;
+    s.style.setProperty('--x', Math.cos(a) * r + 'px'); s.style.setProperty('--y', Math.sin(a) * r + 'px'); if (k % 2) s.style.background = 'var(--hero-accent)';
+    f.appendChild(s); setTimeout(() => s.remove(), 600);
+  }
 }
 function toggle(h, d) {
   if (!canMark(h, d)) return;
+  U.just = h.id + '|' + d;
   mutate(() => { if (isSkip(h, d)) setEntry(h, d, { s: 0 }); else setEntry(h, d, { v: isDone(h, d) ? 0 : goalOf(h) }); });
 }
 function toast(msg) {
-  const t = $('#toast'); const el = document.createElement('div'); el.textContent = msg; t.appendChild(el);
+  const t = $('#toast'); const el = document.createElement('div'); el.textContent = msg; t.appendChild(el); while (t.children.length > 3) t.firstChild.remove();
   setTimeout(() => el.remove(), 2600);
 }
 /* ---------- datos de ejemplo ---------- */
@@ -232,6 +258,7 @@ function cell(h, d) {
   else if (d < t && !isFlex(h)) { cls += ' miss'; st = 'no hecho'; }
   if (fut) cls += ' fut';
   const tip = `${esc(h.name)} · ${shortDate(d)} · ${st}`;
+  if (U.just === h.id + '|' + d) cls += ' just';
   return `<button class="${cls}" style="--h:${h.color}" data-a="tog" data-h="${h.id}" data-d="${d}" ${!ok || fut ? 'disabled' : ''} aria-label="${tip}" data-tip="${tip}">${inner}</button>`;
 }
 function ring(p, label) {
@@ -251,7 +278,7 @@ function habitRow(h, d) {
   if (e.s) ctl = `<button class="tag" data-a="tog" data-h="${h.id}" data-d="${d}">Omitido · deshacer</button>`;
   else if (h.type === 'count') ctl = `<div class="step"><button data-a="dec" data-h="${h.id}" data-d="${d}" aria-label="Restar" ${can ? '' : 'disabled'}>−</button><div class="q num">${val(h, d)}/${h.target}<small>${esc(h.unit)}</small></div><button data-a="inc" data-h="${h.id}" data-d="${d}" aria-label="Sumar" ${can ? '' : 'disabled'}>+</button></div>`;
   else ctl = `<button class="check ${done ? 'on' : ''}" data-a="tog" data-h="${h.id}" data-d="${d}" aria-pressed="${done}" aria-label="${done ? 'Desmarcar' : 'Marcar'} ${esc(h.name)}" ${can ? '' : 'disabled'}>${CHECK}</button>`;
-  return `<div class="row ${done ? 'is-done' : ''}" style="--h:${h.color}"><div class="chip">${h.icon}</div><button class="body" data-a="detail" data-h="${h.id}"><div class="name">${esc(h.name)}${h.type === 'quit' ? ' <span class="tag">por dejar</span>' : ''}</div><div class="meta">${meta.join('') || '<span>' + freqText(h) + '</span>'}</div></button>${ctl}</div>`;
+  return `<div class="row ${done ? 'is-done' : ''} ${U.just === h.id + '|' + d ? 'just' : ''}" style="--h:${h.color}"><div class="chip">${h.icon}</div><button class="body" data-a="detail" data-h="${h.id}"><div class="name"><span class="nt">${esc(h.name)}</span>${h.type === 'quit' ? ' <span class="tag">por dejar</span>' : ''}</div><div class="meta">${meta.join('') || '<span>' + freqText(h) + '</span>'}</div></button>${ctl}</div>`;
 }
 function demoBanner() {
   return S.demo ? `<div class="banner demo"><span>Estos son <b>datos de ejemplo</b> para que veas cómo funciona.</span><button class="btn sm" data-a="clean">Empezar con mis hábitos</button></div>` : '';
@@ -267,8 +294,10 @@ function vHoy() {
   <div class="head"><div><h1>${d === t ? 'Hoy' : DF[wd(d)][0].toUpperCase() + DF[wd(d)].slice(1)}</h1><div class="sub">${longDate(d)}</div></div>
     <div class="pager">${d !== t ? '<button class="btn sm" data-a="day" data-d="' + t + '">Volver a hoy</button>' : ''}<button class="btn pri" data-a="new">+ Hábito</button></div></div>
   <div class="strip"><button class="navbtn" data-a="dshift" data-n="-7" aria-label="Semana anterior">‹</button>${strip}<button class="navbtn" data-a="dshift" data-n="7" aria-label="Semana siguiente">›</button></div>
-  <div class="card hero">${ring(p.p, p.p == null ? '–' : pct(p.p) + '%')}<div><div class="id">${S.identity ? esc(S.identity) : (p.g ? `${p.k} de ${p.g} hábitos cumplidos` : 'Sin hábitos para este día')}</div>${S.identity && p.g ? `<div class="muted small">${p.k} de ${p.g} hábitos cumplidos</div>` : ''}
-    <div class="xp"><span class="lvl">Nv ${g.level} · ${g.title}</span><span class="bar"><i style="width:${pct(g.into / g.need)}%"></i></span><span class="num">${g.into}/${g.need} XP</span></div></div></div>
+  <div class="card hero"><div class="flamebox ${dayStreak() ? '' : 'cold'}">${FLAME}<b class="num">${dayStreak()}</b><small>${dayStreak() === 1 ? 'día seguido' : 'días seguidos'}</small></div>
+    <div class="hb"><div class="id">${S.identity ? esc(S.identity) : (d === t ? 'Tu día de hoy' : longDate(d))}</div>
+    <div class="dprog"><span class="bar"><i style="--from:${U.lastP ?? (p.p || 0)};transform:scaleX(${p.p || 0})"></i></span><span class="num">${p.g ? `${p.k} de ${p.g}` : '–'}</span></div>
+    <div class="xp"><span class="lvl">Nv ${g.level} · ${g.title}</span><span class="num">${g.into}/${g.need} XP</span></div></div></div>
   ${risk.length ? `<div class="banner risk"><span><b>No falles dos veces.</b> Ayer se te pasó: ${risk.map(h => esc(h.name)).join(', ')}. Si lo haces hoy, la racha sigue.</span></div>` : ''}
   ${groups}${empty}`;
 }
@@ -402,6 +431,7 @@ function render() {
   const v = $('#view');
   keepScroll(v, () => { v.innerHTML = ({ hoy: vHoy, semana: vSemana, mes: vMes, progreso: vProgreso, ajustes: vAjustes })[U.tab](); });
   renderSheet();
+  U.just = null; U.lastP = dayPct(U.day).p || 0;
 }
 function renderSheet() {
   const el = $('#sheet');
@@ -450,7 +480,7 @@ const ACT = {
   wshift: e => { U.week = add(U.week, +e.n); render(); },
   mshift: e => { U.month = shiftMonth(U.month, +e.n); render(); },
   tog: e => toggle(byId(e.h), e.d),
-  inc: e => { const h = byId(e.h); if (canMark(h, e.d)) mutate(() => setEntry(h, e.d, { v: val(h, e.d) + 1, s: 0 })); },
+  inc: e => { const h = byId(e.h); U.just = e.h + '|' + e.d; if (canMark(h, e.d)) mutate(() => setEntry(h, e.d, { v: val(h, e.d) + 1, s: 0 })); },
   dec: e => { const h = byId(e.h); if (canMark(h, e.d)) mutate(() => setEntry(h, e.d, { v: Math.max(0, val(h, e.d) - 1) })); },
   skip: e => { const h = byId(e.h); mutate(() => setEntry(h, e.d, isSkip(h, e.d) ? { s: 0 } : { s: 1, v: 0 })); },
   detail: e => { U.sheet = { k: 'detail', h: e.h }; U.del = null; renderSheet(); },
