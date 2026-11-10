@@ -1,0 +1,12 @@
+{
+  "name": "constancia",
+  "private": true,
+  "version": "1.0.0",
+  "description": "App de seguimiento de hábitos (PWA) con sincronización en Firebase",
+  "scripts": {
+    "build": "esbuild src/sync.js --bundle --format=esm --minify --target=es2020 --outfile=public/sync.js && sh build.sh",
+    "deploy": "npm run build && firebase deploy --only hosting,firestore:rules"
+  },
+  "dependencies": { "firebase": "10.12.2" },
+  "devDependencies": { "esbuild": "0.21.5" }
+}
