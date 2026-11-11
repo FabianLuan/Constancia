@@ -26,7 +26,7 @@ const TIMES = [['morning', 'Mañana'], ['afternoon', 'Tarde'], ['evening', 'Noch
 const CHECK = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
 
 /* ---------- estado ---------- */
-const blank = () => ({ v: 1, habits: [], log: {}, pomos: 0, identity: '', theme: 'auto', demo: false, updatedAt: 0 });
+const blank = () => ({ v: 1, habits: [], log: {}, run: null, pomos: 0, identity: '', theme: 'auto', demo: false, updatedAt: 0 });
 function load() { try { const r = localStorage.getItem(KEY); if (r) return Object.assign(blank(), JSON.parse(r)); } catch (e) { } return null; }
 let S = load();
 const cache = new Map();
@@ -43,7 +43,14 @@ const byId = id => S.habits.find(h => h.id === id);
 const entry = (h, d) => (S.log[d] || {})[h.id];
 const val = (h, d) => (entry(h, d) || {}).v || 0;
 const isSkip = (h, d) => !!(entry(h, d) || {}).s;
-const goalOf = h => h.type === 'count' ? Math.max(1, +h.target || 1) : 1;
+const isTimer = h => h.type === 'timer';
+const goalOf = h => h.type === 'count' ? Math.max(1, +h.target || 1) : isTimer(h) ? Math.max(1, +h.target || 1) * 60 : 1;
+// Cronómetro: segundos guardados + lo que lleva corriendo si está activo.
+const running = (h, d) => !!S.run && S.run.h === h.id && S.run.d === d;
+const liveSec = (h, d) => val(h, d) + (running(h, d) ? Math.max(0, Math.floor((Date.now() - S.run.at) / 1000)) : 0);
+function fmtT(sec) { sec = Math.max(0, Math.floor(sec)); const hh = Math.floor(sec / 3600), mm = Math.floor(sec % 3600 / 60), ss = sec % 60; return hh ? `${hh}:${pad(mm)}:${pad(ss)}` : `${mm}:${pad(ss)}`; }
+function fmtGoal(min) { const hh = Math.floor(min / 60), mm = min % 60; return hh ? (mm ? `${hh} h ${mm} min` : `${hh} h`) : `${mm} min`; }
+const amount = (h, v) => isTimer(h) ? fmtGoal(Math.round(v / 60)) : h.type === 'count' ? `${v} ${h.unit}` : 'hecho';
 const isDone = (h, d) => val(h, d) >= goalOf(h);
 const active = (h, d) => d >= h.createdAt;
 const isFlex = h => h.freq.kind === 'weekly';
@@ -193,10 +200,16 @@ function celebrate() {
     f.appendChild(s); setTimeout(() => s.remove(), 600);
   }
 }
+// Guarda en el día lo que lleva el cronómetro y lo detiene.
+function commitRun() {
+  if (!S.run) return; const h = byId(S.run.h);
+  if (h) setEntry(h, S.run.d, { v: val(h, S.run.d) + Math.max(0, Math.floor((Date.now() - S.run.at) / 1000)), s: 0 });
+  S.run = null;
+}
 function toggle(h, d) {
   if (!canMark(h, d)) return;
   U.just = h.id + '|' + d;
-  mutate(() => { if (isSkip(h, d)) setEntry(h, d, { s: 0 }); else setEntry(h, d, { v: isDone(h, d) ? 0 : goalOf(h) }); });
+  mutate(() => { if (running(h, d)) S.run = null; if (isSkip(h, d)) setEntry(h, d, { s: 0 }); else setEntry(h, d, { v: isDone(h, d) ? 0 : goalOf(h) }); });
 }
 function toast(msg) {
   const t = $('#toast'); const el = document.createElement('div'); el.textContent = msg; t.appendChild(el); while (t.children.length > 3) t.firstChild.remove();
@@ -209,9 +222,9 @@ function demo() {
   const H = (o, p) => { const h = Object.assign({ id: uid(), type: 'check', target: 1, unit: '', freq: { kind: 'daily', days: [], times: 3, every: 2 }, time: 'any', reminder: '', stackAfter: '', identity: '', pomodoro: 0, createdAt: c }, o); s.habits.push(h); h._p = p; return h; };
   const a = H({ name: 'Lavarme los dientes', icon: '🦷', color: COLORS[0], time: 'morning' }, .95);
   H({ name: 'Tomar agua', icon: '💧', color: COLORS[2], type: 'count', target: 8, unit: 'vasos' }, .78);
-  H({ name: 'Leer', icon: '📖', color: COLORS[3], type: 'count', target: 20, unit: 'min', time: 'evening', pomodoro: 20, stackAfter: a.id, identity: 'Soy lector' }, .7);
+  H({ name: 'Leer', icon: '📖', color: COLORS[3], type: 'timer', target: 20, time: 'evening', pomodoro: 20, stackAfter: a.id, identity: 'Soy lector' }, .7);
   H({ name: 'Gimnasio', icon: '🏋️', color: COLORS[1], freq: { kind: 'weekly', days: [], times: 3, every: 2 }, time: 'afternoon' }, .42);
-  H({ name: 'Estudiar inglés', icon: '🧠', color: COLORS[6], freq: { kind: 'days', days: [1, 3], times: 3, every: 2 }, time: 'afternoon', pomodoro: 25 }, .6);
+  H({ name: 'Estudiar inglés', icon: '🧠', color: COLORS[6], type: 'timer', target: 90, freq: { kind: 'days', days: [1, 3], times: 3, every: 2 }, time: 'afternoon', pomodoro: 25 }, .6);
   H({ name: 'Ordenar la pieza', icon: '🧹', color: COLORS[4], freq: { kind: 'days', days: [5], times: 3, every: 2 }, time: 'morning' }, .5);
   H({ name: 'Sin azúcar', icon: '🍬', color: COLORS[5], type: 'quit', time: 'any' }, .84);
   H({ name: 'Dormir antes de las 23:30', icon: '😴', color: COLORS[7], time: 'evening', reminder: '23:00' }, .38);
@@ -224,8 +237,8 @@ function demo() {
       if (h.freq.kind === 'weekly') p = .45;
       if (d === t) p -= .35;
       const r = rnd(); const day = s.log[d] || (s.log[d] = {});
-      if (r < p) day[h.id] = { v: h.type === 'count' ? h.target : 1 };
-      else if (h.type === 'count' && r < p + .15) day[h.id] = { v: Math.ceil(h.target / 2) };
+      if (r < p) day[h.id] = { v: h.type === 'count' ? h.target : h.type === 'timer' ? h.target * 60 + Math.floor(rnd() * 600) : 1 };
+      else if ((h.type === 'count' || h.type === 'timer') && r < p + .15) day[h.id] = { v: h.type === 'timer' ? Math.ceil(h.target * 30) : Math.ceil(h.target / 2) };
       else if (r > .985 && h.freq.kind !== 'weekly') day[h.id] = { s: 1, n: 'De viaje' };
       if (!Object.keys(day).length) delete s.log[d];
     }
@@ -253,8 +266,8 @@ function cell(h, d) {
   let cls = 'c', inner = '', st = 'pendiente';
   if (!ok) { cls += ' off'; st = 'no toca'; }
   else if (e.s) { cls += ' skip'; inner = '–'; st = 'omitido'; }
-  else if (isDone(h, d)) { cls += ' done'; inner = CHECK; st = h.type === 'count' ? `${e.v} ${h.unit}` : 'hecho'; }
-  else if (e.v) { cls += ' part'; inner = e.v; st = `${e.v} de ${h.target} ${h.unit}`; }
+  else if (isDone(h, d)) { cls += ' done'; inner = CHECK; st = amount(h, e.v); }
+  else if (e.v) { cls += ' part'; inner = isTimer(h) ? Math.round(e.v / 60) : e.v; st = isTimer(h) ? `${amount(h, e.v)} de ${fmtGoal(h.target)}` : `${e.v} de ${h.target} ${h.unit}`; }
   else if (d < t && !isFlex(h)) { cls += ' miss'; st = 'no hecho'; }
   if (fut) cls += ' fut';
   const tip = `${esc(h.name)} · ${shortDate(d)} · ${st}`;
@@ -276,9 +289,14 @@ function habitRow(h, d) {
   if (e.n) meta.push('📝 nota');
   let ctl;
   if (e.s) ctl = `<button class="tag" data-a="tog" data-h="${h.id}" data-d="${d}">Omitido · deshacer</button>`;
+  else if (isTimer(h)) ctl = timerCtl(h, d, can);
   else if (h.type === 'count') ctl = `<div class="step"><button data-a="dec" data-h="${h.id}" data-d="${d}" aria-label="Restar" ${can ? '' : 'disabled'}>−</button><div class="q num">${val(h, d)}/${h.target}<small>${esc(h.unit)}</small></div><button data-a="inc" data-h="${h.id}" data-d="${d}" aria-label="Sumar" ${can ? '' : 'disabled'}>+</button></div>`;
   else ctl = `<button class="check ${done ? 'on' : ''}" data-a="tog" data-h="${h.id}" data-d="${d}" aria-pressed="${done}" aria-label="${done ? 'Desmarcar' : 'Marcar'} ${esc(h.name)}" ${can ? '' : 'disabled'}>${CHECK}</button>`;
   return `<div class="row ${done ? 'is-done' : ''} ${U.just === h.id + '|' + d ? 'just' : ''}" style="--h:${h.color}"><div class="chip">${h.icon}</div><button class="body" data-a="detail" data-h="${h.id}"><div class="name"><span class="nt">${esc(h.name)}</span>${h.type === 'quit' ? ' <span class="tag">por dejar</span>' : ''}</div><div class="meta">${meta.join('') || '<span>' + freqText(h) + '</span>'}</div></button>${ctl}</div>`;
+}
+function timerCtl(h, d, can, big) {
+  const on = running(h, d), sec = liveSec(h, d), g = goalOf(h), p = Math.min(1, sec / g);
+  return `<div class="tmr ${on ? 'on' : ''} ${big ? 'big' : ''}"><div class="tq num"><b data-live="${h.id}|${d}">${fmtT(sec)}</b><small>de ${fmtGoal(h.target)}</small></div><button class="tbtn" data-a="${on ? 'tpause' : 'tstart'}" data-h="${h.id}" data-d="${d}" style="--p:${p}" data-ring="${h.id}|${d}" aria-label="${on ? 'Pausar' : 'Iniciar'} ${esc(h.name)}" ${can ? '' : 'disabled'}>${on ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14M16 5v14"/></svg>' : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l11-6.5z"/></svg>'}</button></div>`;
 }
 function demoBanner() {
   return S.demo ? `<div class="banner demo"><span>Estos son <b>datos de ejemplo</b> para que veas cómo funciona.</span><button class="btn sm" data-a="clean">Empezar con mis hábitos</button></div>` : '';
@@ -379,19 +397,20 @@ function heat(h) {
     if (d > t || !active(h, d)) c = 'n';
     else if (isSkip(h, d)) c = 'sk';
     else { const r = val(h, d) / goalOf(h); c = r >= 1 ? 'l3' : r >= .5 ? 'l2' : r > 0 ? 'l1' : ''; }
-    s += `<i class="${c}" data-tip="${shortDate(d)}${val(h, d) ? ' · ' + (h.type === 'count' ? val(h, d) + ' ' + esc(h.unit) : 'hecho') : ''}"></i>`;
+    s += `<i class="${c}" data-tip="${shortDate(d)}${val(h, d) ? ' · ' + esc(amount(h, val(h, d))) : ''}"></i>`;
   }
   return s;
 }
 function sDetail(h) {
   const m = metrics(h), d = U.day > today() ? today() : U.day, e = entry(h, d) || {}, can = canMark(h, d);
   const r30 = rangeStats(h, add(today(), -29), today());
-  return `<div class="top"><div style="display:flex;gap:12px;align-items:center;min-width:0"><div class="chip" style="--h:${h.color}">${h.icon}</div><div style="min-width:0"><h2>${esc(h.name)}</h2><div class="muted small">${freqText(h)}${h.type === 'count' ? ` · meta ${h.target} ${esc(h.unit)}` : ''}${h.type === 'quit' ? ' · hábito por dejar' : ''}</div></div></div><button class="btn sm ghost" data-a="close">Cerrar</button></div>
+  return `<div class="top"><div style="display:flex;gap:12px;align-items:center;min-width:0"><div class="chip" style="--h:${h.color}">${h.icon}</div><div style="min-width:0"><h2>${esc(h.name)}</h2><div class="muted small">${freqText(h)}${h.type === 'count' ? ` · meta ${h.target} ${esc(h.unit)}` : isTimer(h) ? ` · meta ${fmtGoal(h.target)}` : ''}${h.type === 'quit' ? ' · hábito por dejar' : ''}</div></div></div><button class="btn sm ghost" data-a="close">Cerrar</button></div>
   ${h.identity ? `<div class="muted">“${esc(h.identity)}”</div>` : ''}
   <div class="stats4"><div><b class="num">${m.streak}</b>racha (${m.unit})</div><div><b class="num">${m.best}</b>mejor racha</div><div><b class="num">${pct(m.strength)}%</b>fuerza</div><div><b class="num">${r30.pct == null ? '–' : pct(r30.pct) + '%'}</b>últimos 30 días</div></div>
   <div class="field"><div class="lab">Último año</div><div class="scrollx" data-k="heat" data-end="1" style="padding:10px;--h:${h.color}"><div class="heat">${heat(h)}</div></div></div>
   <div class="card" style="display:flex;flex-direction:column;gap:10px"><div class="eyebrow">${d === today() ? 'Hoy' : longDate(d)}</div>
-    ${can ? `<div class="acts">${h.type === 'count' ? `<div class="step"><button data-a="dec" data-h="${h.id}" data-d="${d}" aria-label="Restar">−</button><div class="q num">${val(h, d)}/${h.target}<small>${esc(h.unit)}</small></div><button data-a="inc" data-h="${h.id}" data-d="${d}" aria-label="Sumar">+</button></div>` : `<button class="btn ${isDone(h, d) ? '' : 'pri'}" data-a="tog" data-h="${h.id}" data-d="${d}">${isDone(h, d) ? 'Desmarcar' : (h.type === 'quit' ? 'Hoy me mantuve' : 'Marcar como hecho')}</button>`}
+    ${can && isTimer(h) ? `${timerCtl(h, d, can, true)}<div class="acts"><button class="btn sm" data-a="tadd" data-h="${h.id}" data-d="${d}" data-n="-300">− 5 min</button><button class="btn sm" data-a="tadd" data-h="${h.id}" data-d="${d}" data-n="300">+ 5 min</button><button class="btn sm" data-a="tadd" data-h="${h.id}" data-d="${d}" data-n="900">+ 15 min</button><button class="btn sm ghost" data-a="treset" data-h="${h.id}" data-d="${d}">${U.treset === h.id ? '¿Seguro? Volver a 0' : 'Reiniciar'}</button></div>` : ''}
+    ${can ? `<div class="acts">${isTimer(h) ? '' : h.type === 'count' ? `<div class="step"><button data-a="dec" data-h="${h.id}" data-d="${d}" aria-label="Restar">−</button><div class="q num">${val(h, d)}/${h.target}<small>${esc(h.unit)}</small></div><button data-a="inc" data-h="${h.id}" data-d="${d}" aria-label="Sumar">+</button></div>` : `<button class="btn ${isDone(h, d) ? '' : 'pri'}" data-a="tog" data-h="${h.id}" data-d="${d}">${isDone(h, d) ? 'Desmarcar' : (h.type === 'quit' ? 'Hoy me mantuve' : 'Marcar como hecho')}</button>`}
       <button class="btn" data-a="skip" data-h="${h.id}" data-d="${d}">${e.s ? 'Quitar omitido' : 'Omitir este día'}</button>
       ${h.pomodoro ? `<button class="btn" data-a="pomo" data-h="${h.id}">🍅 Foco ${h.pomodoro} min</button>` : ''}</div>
     <div class="field"><label for="note">Nota del día</label><textarea class="inp" id="note" data-f="note" data-h="${h.id}" data-d="${d}" placeholder="¿Cómo te fue? ¿Qué te lo impidió?">${esc(e.n || '')}</textarea></div>` : '<div class="muted">Este hábito no toca este día.</div>'}
@@ -403,7 +422,9 @@ function sForm() {
   const others = habits().filter(h => h.id !== f.id);
   return `<div class="top"><h2>${f.id ? 'Editar hábito' : 'Nuevo hábito'}</h2><button class="btn sm ghost" data-a="close">Cancelar</button></div>
   <div class="field"><label for="f-name">Nombre</label><input class="inp" id="f-name" data-ff="name" value="${esc(f.name)}" placeholder="Ej. Lavarme los dientes" maxlength="60"></div>
-  <div class="field"><div class="lab">Tipo</div>${seg('type', [['check', 'Sí o no'], ['count', 'Medible'], ['quit', 'Por dejar']])}<span class="muted small">${f.type === 'count' ? 'Para cantidades: vasos de agua, minutos, páginas.' : f.type === 'quit' ? 'Marcas cada día que te mantuviste. La racha cuenta tus días limpio.' : 'Lo hiciste o no lo hiciste.'}</span></div>
+  <label class="switch" for="f-timer"><span><b>Incluir temporizador</b><small>Para hábitos de tiempo, como estudiar 1 h 30 min. Lo inicias, lo pausas y la meta se va llenando; puedes pasarte.</small></span><input type="checkbox" id="f-timer" data-a="ftimer" ${f.type === 'timer' ? 'checked' : ''}><i aria-hidden="true"></i></label>
+  <div class="field"><div class="lab">Tipo</div>${f.type === 'timer' ? '<span class="muted small">Se mide con el temporizador.</span>' : seg('type', [['check', 'Sí o no'], ['count', 'Cantidad'], ['quit', 'Por dejar']])}<span class="muted small">${f.type === 'timer' ? '' : f.type === 'count' ? 'Para cantidades: vasos de agua, minutos, páginas.' : f.type === 'quit' ? 'Marcas cada día que te mantuviste. La racha cuenta tus días limpio.' : 'Lo hiciste o no lo hiciste.'}</span></div>
+  ${f.type === 'timer' ? `<div class="field"><div class="lab">Meta diaria de tiempo</div><div class="two"><div class="field"><label for="f-th">Horas</label><input class="inp" id="f-th" type="number" min="0" max="23" inputmode="numeric" data-ff="th" value="${esc(f.th)}"></div><div class="field"><label for="f-tm">Minutos</label><input class="inp" id="f-tm" type="number" min="0" max="59" step="5" inputmode="numeric" data-ff="tm" value="${esc(f.tm)}"></div></div><div class="seg">${[30, 60, 90, 120].map(m => `<button type="button" data-a="fgoal" data-v="${m}" aria-pressed="${+f.th * 60 + +f.tm === m}">${fmtGoal(m)}</button>`).join('')}</div></div>` : ''}
   ${f.type === 'count' ? `<div class="two"><div class="field"><label for="f-target">Meta diaria</label><input class="inp" id="f-target" type="number" min="1" inputmode="numeric" data-ff="target" value="${esc(f.target)}"></div><div class="field"><label for="f-unit">Unidad</label><input class="inp" id="f-unit" data-ff="unit" value="${esc(f.unit)}" placeholder="vasos, min, páginas" maxlength="14"></div></div>` : ''}
   <div class="field"><div class="lab">Frecuencia</div>${seg('freq.kind', [['daily', 'Todos los días'], ['days', 'Días fijos'], ['weekly', 'Veces por semana'], ['interval', 'Cada N días']])}
     ${f.freq.kind === 'days' ? `<div class="seg">${DS.map((l, i) => `<button type="button" data-a="fday" data-v="${i}" aria-pressed="${f.freq.days.includes(i)}">${l}</button>`).join('')}</div>` : ''}
@@ -443,13 +464,25 @@ function renderSheet() {
   if (same) el.querySelector('.sheet').scrollTop = top;
 }
 /* ---------- pomodoro y recordatorios ---------- */
+function tickRun() {
+  const bar = $('#run');
+  if (!S.run) { if (bar.innerHTML) bar.innerHTML = ''; return; }
+  const h = byId(S.run.h); if (!h) { S.run = null; save(); return; }
+  const d = S.run.d, sec = liveSec(h, d), g = goalOf(h);
+  if (val(h, d) < g && sec >= g) { mutate(() => { commitRun(); S.run = { h: h.id, d, at: Date.now() }; }); toast(`⏱ Meta cumplida: ${h.name}`); beep(); return; }
+  document.querySelectorAll(`[data-live="${h.id}|${d}"]`).forEach(el => { el.textContent = fmtT(sec); });
+  document.querySelectorAll(`[data-ring="${h.id}|${d}"]`).forEach(el => el.style.setProperty('--p', Math.min(1, sec / g)));
+  const html = `<div class="pp"><span>⏱ ${fmtT(sec)}</span><small>${esc(h.name)}</small><button data-a="tpause">Pausar</button></div>`;
+  if (bar.innerHTML !== html) bar.innerHTML = html;
+}
 function tick() {
+  tickRun();
   const el = $('#pomo');
   if (U.pomo) {
     const left = Math.max(0, Math.round((U.pomo.end - Date.now()) / 1000)), h = byId(U.pomo.h);
     if (left <= 0 || !h) {
       const p = U.pomo; U.pomo = null; el.innerHTML = '';
-      if (h) { beep(); mutate(() => { S.pomos++; const d = today(); if (canMark(h, d)) { if (h.type === 'count' && /min/i.test(h.unit)) setEntry(h, d, { v: val(h, d) + p.mins, s: 0 }); else if (h.type !== 'count') setEntry(h, d, { v: 1, s: 0 }); } }); toast(`🍅 Sesión terminada: ${h.name}`); }
+      if (h) { beep(); mutate(() => { S.pomos++; const d = today(); if (canMark(h, d)) { if (isTimer(h)) setEntry(h, d, { v: val(h, d) + p.mins * 60, s: 0 }); else if (h.type === 'count' && /min/i.test(h.unit)) setEntry(h, d, { v: val(h, d) + p.mins, s: 0 }); else if (h.type !== 'count') setEntry(h, d, { v: 1, s: 0 }); } }); toast(`🍅 Sesión terminada: ${h.name}`); }
     } else el.innerHTML = `<div class="pp"><span>🍅 ${pad(Math.floor(left / 60))}:${pad(left % 60)}</span><small>${esc(h.name)}</small><button data-a="pomostop">Detener</button></div>`;
   }
   const now = new Date(), hm = `${pad(now.getHours())}:${pad(now.getMinutes())}`, d = today();
@@ -470,7 +503,9 @@ function csv() {
   return rows.join('\n');
 }
 function newForm(h) {
-  return h ? JSON.parse(JSON.stringify(h)) : { id: null, name: '', icon: '✅', color: COLORS[S.habits.length % COLORS.length], type: 'check', target: 8, unit: 'vasos', freq: { kind: 'daily', days: [0, 1, 2, 3, 4], times: 3, every: 2 }, time: 'any', reminder: '', stackAfter: '', identity: '', pomodoro: 0, createdAt: today() };
+  const f = h ? JSON.parse(JSON.stringify(h)) : null;
+  if (f) { const m = isTimer(f) ? +f.target : 60; f.th = Math.floor(m / 60); f.tm = m % 60; return f; }
+  return Object.assign({ th: 1, tm: 0 },  { id: null, name: '', icon: '✅', color: COLORS[S.habits.length % COLORS.length], type: 'check', target: 8, unit: 'vasos', freq: { kind: 'daily', days: [0, 1, 2, 3, 4], times: 3, every: 2 }, time: 'any', reminder: '', stackAfter: '', identity: '', pomodoro: 0, createdAt: today() });
 }
 /* ---------- eventos ---------- */
 const ACT = {
@@ -497,12 +532,20 @@ const ACT = {
     else if (!/^\d{4}-\d{2}-\d{2}$/.test(f.createdAt) || f.createdAt > today()) U.ferr = 'La fecha de inicio no puede ser futura.';
     else U.ferr = '';
     if (U.ferr) return renderSheet();
-    if (f.type !== 'count') { f.target = 1; f.unit = ''; }
+    if (f.type === 'timer') { const m = Math.max(0, Math.round(+f.th || 0)) * 60 + Math.max(0, Math.round(+f.tm || 0)); if (m < 1) { U.ferr = 'Ponle una meta de al menos 1 minuto.'; return renderSheet(); } f.target = m; f.unit = ''; }
+    else if (f.type !== 'count') { f.target = 1; f.unit = ''; }
+    delete f.th; delete f.tm; delete f.prevType;
     const isNew = !f.id; U.sheet = isNew ? null : { k: 'detail', h: f.id }; U.form = null;
     mutate(() => { if (isNew) { f.id = uid(); S.habits.push(f); } else S.habits[S.habits.findIndex(h => h.id === f.id)] = f; });
     toast(isNew ? 'Hábito creado' : 'Cambios guardados');
   },
-  del: e => { if (U.del !== e.h) { U.del = e.h; return renderSheet(); } U.sheet = null; mutate(() => { S.habits = S.habits.filter(h => h.id !== e.h); for (const d in S.log) { delete S.log[d][e.h]; if (!Object.keys(S.log[d]).length) delete S.log[d]; } S.habits.forEach(h => { if (h.stackAfter === e.h) h.stackAfter = ''; }); }); toast('Hábito eliminado'); },
+  del: e => { if (U.del !== e.h) { U.del = e.h; return renderSheet(); } U.sheet = null; mutate(() => { if (S.run && S.run.h === e.h) S.run = null; S.habits = S.habits.filter(h => h.id !== e.h); for (const d in S.log) { delete S.log[d][e.h]; if (!Object.keys(S.log[d]).length) delete S.log[d]; } S.habits.forEach(h => { if (h.stackAfter === e.h) h.stackAfter = ''; }); }); toast('Hábito eliminado'); },
+  tstart: e => { const h = byId(e.h); if (!canMark(h, e.d)) return; mutate(() => { commitRun(); S.run = { h: h.id, d: e.d, at: Date.now() }; }); },
+  tpause: () => { mutate(() => { commitRun(); }); },
+  tadd: e => { const h = byId(e.h); if (!canMark(h, e.d)) return; mutate(() => { if (running(h, e.d)) { commitRun(); S.run = { h: h.id, d: e.d, at: Date.now() }; } setEntry(h, e.d, { v: Math.max(0, val(h, e.d) + +e.n), s: 0 }); }); },
+  treset: e => { if (U.treset !== e.h) { U.treset = e.h; return renderSheet(); } U.treset = null; const h = byId(e.h); mutate(() => { if (running(h, e.d)) S.run = null; setEntry(h, e.d, { v: 0 }); }); },
+  ftimer: () => { const f = U.form; if (f.type === 'timer') f.type = f.prevType || 'check'; else { f.prevType = f.type; f.type = 'timer'; } renderSheet(); },
+  fgoal: e => { U.form.th = Math.floor(+e.v / 60); U.form.tm = +e.v % 60; renderSheet(); },
   pomo: e => { const h = byId(e.h); U.pomo = { h: h.id, mins: h.pomodoro, end: Date.now() + h.pomodoro * 60000 }; U.sheet = null; renderSheet(); tick(); toast(`🍅 ${h.pomodoro} minutos de foco`); },
   pomostop: () => { U.pomo = null; $('#pomo').innerHTML = ''; },
   theme: e => { S.theme = e.t; save(); applyTheme(); render(); },
