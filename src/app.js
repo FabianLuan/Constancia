@@ -451,16 +451,24 @@ function render() {
   $('#nav').innerHTML = navHTML();
   const v = $('#view');
   keepScroll(v, () => { v.innerHTML = ({ hoy: vHoy, semana: vSemana, mes: vMes, progreso: vProgreso, ajustes: vAjustes })[U.tab](); });
+  if (U.enter) { U.enter = false; v.classList.remove('enter'); void v.offsetWidth; v.classList.add('enter'); }
   renderSheet();
   U.just = null; U.lastP = dayPct(U.day).p || 0;
 }
 function renderSheet() {
   const el = $('#sheet');
-  if (!U.sheet) { el.innerHTML = ''; return; }
+  clearTimeout(U.outT);
+  if (!U.sheet) {
+    const sc = el.querySelector('.scrim');
+    if (!sc || matchMedia('(prefers-reduced-motion: reduce)').matches) { el.innerHTML = ''; return; }
+    sc.classList.add('out'); sc.style.pointerEvents = 'none';
+    U.outT = setTimeout(() => { if (!U.sheet) el.innerHTML = ''; }, 200);
+    return;
+  }
   const h = U.sheet.h && byId(U.sheet.h);
   if (U.sheet.k === 'detail' && !h) { U.sheet = null; el.innerHTML = ''; return; }
   const cur = el.querySelector('.sheet'), top = cur ? cur.scrollTop : 0, same = cur && cur.dataset.k === U.sheet.k;
-  keepScroll(el, () => { el.innerHTML = `<div class="scrim" data-a="scrim"><div class="sheet" role="dialog" aria-modal="true" data-k="${U.sheet.k}">${U.sheet.k === 'detail' ? sDetail(h) : sForm()}</div></div>`; });
+  keepScroll(el, () => { el.innerHTML = `<div class="scrim${same ? ' still' : ''}" data-a="scrim"><div class="sheet" role="dialog" aria-modal="true" data-k="${U.sheet.k}">${U.sheet.k === 'detail' ? sDetail(h) : sForm()}</div></div>`; });
   if (same) el.querySelector('.sheet').scrollTop = top;
 }
 /* ---------- pomodoro y recordatorios ---------- */
@@ -509,7 +517,7 @@ function newForm(h) {
 }
 /* ---------- eventos ---------- */
 const ACT = {
-  tab: e => { U.tab = e.t; U.io = null; U.wipe = false; render(); window.scrollTo(0, 0); },
+  tab: e => { if (U.tab !== e.t) U.enter = true; U.tab = e.t; U.io = null; U.wipe = false; render(); window.scrollTo(0, 0); },
   day: e => { U.day = e.d; render(); },
   dshift: e => { U.day = add(U.day, +e.n); render(); },
   wshift: e => { U.week = add(U.week, +e.n); render(); },

@@ -307,3 +307,15 @@ textarea.inp{min-height:76px;resize:vertical}
 .switch input:checked+i::after{transform:translateX(18px)}
 .switch input:focus-visible+i{outline:2px solid var(--accent);outline-offset:2px}
 @media (prefers-reduced-motion:reduce){.switch i,.switch i::after{transition:none}}
+
+/* transiciones suaves: la hoja solo se anima al abrir/cerrar, no en cada cambio */
+.scrim.still,.scrim.still .sheet{animation:none}
+.scrim.out{animation:fadeout 180ms var(--ease-out) forwards}
+.scrim.out .sheet{animation:sheetout 180ms var(--ease-out) forwards}
+@keyframes fadeout{to{opacity:0}}
+@keyframes sheetout{to{transform:translateY(16px);opacity:0}}
+#view.enter{animation:viewin 240ms var(--ease-out)}
+@keyframes viewin{from{opacity:0;transform:translateY(6px)}}
+.seg button,.chips button,.tab{transition:background-color 150ms var(--ease-out),color 150ms var(--ease-out),border-color 150ms var(--ease-out)}
+@media (prefers-reduced-motion:reduce){#view.enter,.scrim.out,.scrim.out .sheet{animation:none}}
+.seg button:active{transform:scale(.97)}.seg button{transition:transform 100ms var(--ease-out),background-color 150ms var(--ease-out),color 150ms var(--ease-out)}
