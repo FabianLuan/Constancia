@@ -319,3 +319,11 @@ textarea.inp{min-height:76px;resize:vertical}
 .seg button,.chips button,.tab{transition:background-color 150ms var(--ease-out),color 150ms var(--ease-out),border-color 150ms var(--ease-out)}
 @media (prefers-reduced-motion:reduce){#view.enter,.scrim.out,.scrim.out .sheet{animation:none}}
 .seg button:active{transform:scale(.97)}.seg button{transition:transform 100ms var(--ease-out),background-color 150ms var(--ease-out),color 150ms var(--ease-out)}
+/* selector de emojis */
+.seg.ic .more{width:auto;padding:0 12px;font-size:.84rem;color:var(--accent);border-style:dashed}
+.epick{margin-top:10px;padding:12px;border:1px solid var(--line);border-radius:14px;background:var(--surface);display:flex;flex-direction:column;gap:10px;animation:fade var(--m200) var(--ease-out)}
+.epick .two{gap:8px}
+.ecats{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
+.ecats button{white-space:nowrap;flex:none}
+.egrid{max-height:232px;overflow-y:auto;overscroll-behavior:contain}
+.egrid .muted{margin:4px}

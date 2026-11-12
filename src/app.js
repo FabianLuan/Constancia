@@ -417,6 +417,16 @@ function sDetail(h) {
   </div>
   <div class="acts"><button class="btn" data-a="edit" data-h="${h.id}">Editar</button><button class="btn danger" data-a="del" data-h="${h.id}">${U.del === h.id ? '¿Seguro? Eliminar con su historial' : 'Eliminar'}</button></div>`;
 }
+function egrid(f) {
+  const q = fold((U.eq || '').trim()), seen = new Set();
+  const list = EMOJI_ALL.filter(x => (q ? fold(x.k).includes(q) : x.c === (U.ecat || 'salud')) && !seen.has(x.e) && seen.add(x.e));
+  return list.length ? list.map(x => `<button type="button" data-a="fset" data-k="icon" data-v="${x.e}" aria-pressed="${f.icon === x.e}" title="${x.k}">${x.e}</button>`).join('') : '<p class="muted small">Sin resultados. Prueba con el teclado de emojis de tu teléfono arriba.</p>';
+}
+function epickHTML(f) {
+  return `<div class="epick"><div class="two"><div class="field"><label for="f-emo">Desde tu teclado</label><input class="inp" id="f-emo" inputmode="text" autocomplete="off" placeholder="Toca y elige un emoji" data-e="kb"></div><div class="field"><label for="f-es">Buscar</label><input class="inp" id="f-es" type="search" autocomplete="off" placeholder="agua, libro, correr…" data-e="q" value="${esc(U.eq || '')}"></div></div>
+  <div class="seg ecats" ${U.eq ? 'hidden' : ''}>${EMOJI_CATS.map(([c, ic]) => `<button type="button" data-a="ecat" data-v="${c}" aria-pressed="${(U.ecat || 'salud') === c}">${ic} ${c[0].toUpperCase() + c.slice(1).replace('simbolos', 'símbolos')}</button>`).join('')}</div>
+  <div class="seg ic egrid" id="egrid">${egrid(f)}</div></div>`;
+}
 function sForm() {
   const f = U.form, seg = (key, opts) => `<div class="seg">${opts.map(([k, l]) => `<button type="button" data-a="fset" data-k="${key}" data-v="${k}" aria-pressed="${String(key.split('.').reduce((o, p) => o[p], f)) === String(k)}">${l}</button>`).join('')}</div>`;
   const others = habits().filter(h => h.id !== f.id);
@@ -431,7 +441,7 @@ function sForm() {
     ${f.freq.kind === 'weekly' ? seg('freq.times', [1, 2, 3, 4, 5, 6].map(n => [n, n + (n === 1 ? ' vez' : ' veces')])) : ''}
     ${f.freq.kind === 'interval' ? seg('freq.every', [2, 3, 4, 5, 7, 14].map(n => [n, 'Cada ' + n])) : ''}</div>
   <div class="field"><div class="lab">Momento del día</div>${seg('time', TIMES)}</div>
-  <div class="field"><div class="lab">Ícono</div><div class="seg ic">${ICONS.map(i => `<button type="button" data-a="fset" data-k="icon" data-v="${i}" aria-pressed="${f.icon === i}">${i}</button>`).join('')}</div></div>
+  <div class="field"><div class="lab">Ícono</div><div class="seg ic">${(ICONS.includes(f.icon) ? ICONS : [f.icon, ...ICONS]).map(i => `<button type="button" data-a="fset" data-k="icon" data-v="${i}" aria-pressed="${f.icon === i}">${i}</button>`).join('')}<button type="button" class="more" data-a="epick" aria-expanded="${!!U.epick}">${U.epick ? 'Cerrar' : '＋ Más'}</button></div>${U.epick ? epickHTML(f) : ''}</div>
   <div class="field"><div class="lab">Color</div><div class="seg col">${COLORS.map((c, i) => `<button type="button" style="--h:${c}" data-a="fset" data-k="color" data-v="${c}" aria-pressed="${f.color === c}" aria-label="Color ${i + 1}"></button>`).join('')}</div></div>
   <div class="two"><div class="field"><label for="f-rem">Recordatorio</label><input class="inp" id="f-rem" type="time" data-ff="reminder" value="${esc(f.reminder)}"></div><div class="field"><label for="f-since">Desde</label><input class="inp" id="f-since" type="date" data-ff="createdAt" max="${today()}" value="${esc(f.createdAt)}"></div></div>
   <div class="field"><label for="f-stack">Apilar después de</label><select class="inp" id="f-stack" data-ff="stackAfter"><option value="">Ninguno</option>${others.map(h => `<option value="${h.id}" ${f.stackAfter === h.id ? 'selected' : ''}>${esc(h.name)}</option>`).join('')}</select><span class="muted small">Encadena este hábito a uno que ya haces: “después de X, hago esto”.</span></div>
@@ -529,8 +539,8 @@ const ACT = {
   detail: e => { U.sheet = { k: 'detail', h: e.h }; U.del = null; renderSheet(); },
   close: () => { U.sheet = null; U.form = null; U.ferr = ''; renderSheet(); },
   scrim: (e, ev) => { if (ev.target.classList.contains('scrim')) ACT.close(); },
-  new: () => { U.form = newForm(); U.ferr = ''; U.sheet = { k: 'form' }; renderSheet(); const i = $('#f-name'); if (i) i.focus(); },
-  edit: e => { U.form = newForm(byId(e.h)); U.ferr = ''; U.sheet = { k: 'form' }; renderSheet(); },
+  new: () => { U.form = newForm(); U.ferr = ''; U.epick = false; U.eq = ''; U.sheet = { k: 'form' }; renderSheet(); const i = $('#f-name'); if (i) i.focus(); },
+  edit: e => { U.form = newForm(byId(e.h)); U.ferr = ''; U.epick = false; U.eq = ''; U.sheet = { k: 'form' }; renderSheet(); },
   fset: e => { const ks = e.k.split('.'); let o = U.form; while (ks.length > 1) o = o[ks.shift()]; o[ks[0]] = /^(freq\.times|freq\.every|pomodoro)$/.test(e.k) ? +e.v : e.v; renderSheet(); },
   fday: e => { const a = U.form.freq.days, i = +e.v; U.form.freq.days = a.includes(i) ? a.filter(x => x !== i) : a.concat(i); renderSheet(); },
   fsave: () => {
@@ -552,6 +562,8 @@ const ACT = {
   tpause: () => { mutate(() => { commitRun(); }); },
   tadd: e => { const h = byId(e.h); if (!canMark(h, e.d)) return; mutate(() => { if (running(h, e.d)) { commitRun(); S.run = { h: h.id, d: e.d, at: Date.now() }; } setEntry(h, e.d, { v: Math.max(0, val(h, e.d) + +e.n), s: 0 }); }); },
   treset: e => { if (U.treset !== e.h) { U.treset = e.h; return renderSheet(); } U.treset = null; const h = byId(e.h); mutate(() => { if (running(h, e.d)) S.run = null; setEntry(h, e.d, { v: 0 }); }); },
+  epick: () => { U.epick = !U.epick; U.eq = ''; renderSheet(); },
+  ecat: e => { U.ecat = e.v; renderSheet(); },
   ftimer: () => { const f = U.form; f.type = f.type === 'timer' ? 'count' : 'timer'; renderSheet(); },
   ftype: e => { const f = U.form; if (e.v === 'count' && f.type === 'timer') return; f.type = e.v; renderSheet(); },
   fgoal: e => { U.form.th = Math.floor(+e.v / 60); U.form.tm = +e.v % 60; renderSheet(); },
@@ -581,6 +593,8 @@ document.addEventListener('click', ev => {
 document.addEventListener('input', ev => {
   const el = ev.target;
   if (el.dataset.ff && U.form) U.form[el.dataset.ff] = el.value;
+  else if (el.dataset.e === 'q' && U.form) { U.eq = el.value; const g = $('#egrid'); if (g) g.innerHTML = egrid(U.form); const c = $('.ecats'); if (c) c.hidden = !!U.eq; }
+  else if (el.dataset.e === 'kb' && U.form) { const e = firstEmoji(el.value); el.value = ''; if (e) { U.form.icon = e; renderSheet(); toast('Ícono: ' + e); } }
   else if (el.dataset.f === 'identity') { S.identity = el.value; save(); }
   else if (el.dataset.f === 'note') { const h = byId(el.dataset.h); if (h) { setEntry(h, el.dataset.d, { n: el.value.trim() }); save(); } }
 });
