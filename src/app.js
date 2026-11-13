@@ -23,10 +23,13 @@ const pct = x => Math.round(x * 100);
 const COLORS = ['#2F7ED8', '#D9622B', '#1F9E89', '#8B5CD6', '#A8861A', '#D6457A', '#5C6BC0', '#6B8E23'];
 const ICONS = ['✅', '💧', '🦷', '🏃', '🏋️', '🧘', '📖', '✍️', '🥗', '🍎', '😴', '⏰', '🧹', '💊', '🎸', '💻', '🧠', '🚭', '📵', '🍬', '🚿', '🐕', '💰', '🙏'];
 const TIMES = [['morning', 'Mañana'], ['afternoon', 'Tarde'], ['evening', 'Noche'], ['any', 'Cualquier momento']];
+const REM = { morning: '08:00', afternoon: '15:00', evening: '21:00', any: '19:00' };
+const remDefault = t => REM[t] || REM.any;
+const pushOn = () => { try { return !!localStorage.getItem('constancia.push') && Notification.permission === 'granted'; } catch (e) { return false; } };
 const CHECK = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
 
 /* ---------- estado ---------- */
-const blank = () => ({ v: 1, habits: [], log: {}, run: null, pomos: 0, identity: '', theme: 'auto', demo: false, updatedAt: 0 });
+const blank = () => ({ v: 1, habits: [], log: {}, run: null, notif: { summary: '20:00' }, pomos: 0, identity: '', theme: 'auto', demo: false, updatedAt: 0 });
 function load() { try { const r = localStorage.getItem(KEY); if (r) return Object.assign(blank(), JSON.parse(r)); } catch (e) { } return null; }
 let S = load();
 const cache = new Map();
@@ -378,12 +381,26 @@ function cloudHTML() {
   const st = C.status === 'synced' ? 'Sincronizado' : C.status === 'pending' ? 'Guardando cambios…' : C.status === 'offline' ? 'Sin conexión: se sincroniza al volver' : 'Conectando…';
   return `<p class="small" style="margin:0"><b>${esc(u.name || u.email)}</b><br><span class="muted">${esc(u.email || '')}</span></p><p class="small" style="margin:0"><span class="pill ${C.status === 'synced' ? 'ok' : 'mid'}">${st}</span></p><div><button class="btn sm" data-a="logout">Cerrar sesión</button></div>${C.error ? `<div class="err">${esc(C.error)}</div>` : ''}`;
 }
+function notifHTML() {
+  const C = window.ConstanciaSync, np = typeof Notification !== 'undefined' ? Notification.permission : 'unsupported', sum = (S.notif || {}).summary || '';
+  let dev;
+  if (!C) dev = '<p class="muted small" style="margin:0">En la app instalada en tu celular podrás activar avisos que llegan aunque la app esté cerrada.</p>';
+  else if (np === 'unsupported' || !C.enablePush) dev = '<p class="muted small" style="margin:0">Este navegador no admite notificaciones. En Android usa Chrome con la app instalada.</p>';
+  else if (!C.user) dev = '<p class="muted small" style="margin:0">Inicia sesión en <b>Nube</b> para recibir los avisos en este dispositivo aunque la app esté cerrada.</p>';
+  else if (pushOn()) dev = '<p class="small" style="margin:0"><span class="pill ok">Activadas en este dispositivo</span></p><div class="acts"><button class="btn sm" data-a="pushtest">Probar aviso</button><button class="btn sm ghost" data-a="pushoff">Desactivar aquí</button></div>';
+  else if (np === 'denied') dev = '<p class="muted small" style="margin:0">Las notificaciones están bloqueadas para esta app. Actívalas en Ajustes del teléfono › Apps › Chrome (o Constancia) › Notificaciones, y vuelve aquí.</p><div><button class="btn sm pri" data-a="pushon">Reintentar</button></div>';
+  else dev = `<p class="muted small" style="margin:0">Recibe en este celular el aviso de cada hábito a su hora y un resumen de lo que te queda, aunque la app esté cerrada.</p><div><button class="btn sm pri" data-a="pushon" ${U.pushBusy ? 'disabled' : ''}>${U.pushBusy ? 'Activando…' : 'Activar en este dispositivo'}</button></div>`;
+  return `${dev}
+  <label class="switch" for="n-sum"><span><b>Resumen diario de pendientes</b><small>${sum ? `A las ${sum} te digo cuántos hábitos te quedan y cuáles son.` : 'Sin resumen diario.'}</small></span><input type="checkbox" id="n-sum" data-a="sumtoggle" ${sum ? 'checked' : ''}><i aria-hidden="true"></i></label>
+  ${sum ? `<div class="field"><label for="n-sumt">Hora del resumen</label><input class="inp" id="n-sumt" type="time" data-f="summary" value="${esc(sum)}" style="max-width:160px"></div>` : ''}
+  <p class="muted small" style="margin:0">La hora de aviso de cada hábito se cambia al editarlo. Los avisos llegan con hasta unos 20 minutos de diferencia.</p>`;
+}
 function vAjustes() {
   const np = typeof Notification !== 'undefined' ? Notification.permission : 'unsupported';
   return `<div class="head"><div><h1>Ajustes</h1></div></div><div class="set">
   <div class="card"><div class="field"><label for="identity">Mi identidad</label><input class="inp" id="identity" data-f="identity" value="${esc(S.identity)}" placeholder="Soy alguien que…" maxlength="120"><span class="muted small">Aparece en la pantalla de Hoy para recordarte por qué lo haces.</span></div></div>
   <div class="card"><div class="lab eyebrow">Apariencia</div><div class="seg">${[['auto', 'Automático'], ['light', 'Claro'], ['dark', 'Oscuro']].map(([k, l]) => `<button data-a="theme" data-t="${k}" aria-pressed="${S.theme === k}">${l}</button>`).join('')}</div></div>
-  <div class="card"><div class="lab eyebrow">Recordatorios</div><p class="muted small" style="margin:0">Cada hábito puede tener su hora. ${np === 'granted' ? 'Las notificaciones están activadas en este dispositivo.' : np === 'unsupported' ? 'Este navegador no permite notificaciones; verás el aviso dentro de la app.' : 'Activa las notificaciones para recibir el aviso aunque estés en otra pestaña.'}</p>${np === 'default' ? '<div><button class="btn sm" data-a="notif">Activar notificaciones</button></div>' : ''}</div>
+  <div class="card"><div class="lab eyebrow">Notificaciones</div>${notifHTML()}</div>
   <div class="card"><div class="lab eyebrow">Nube</div>${cloudHTML()}</div>
   <div class="card"><div class="lab eyebrow">Respaldo</div><div class="acts"><button class="btn sm" data-a="exp" data-t="json">Exportar respaldo</button><button class="btn sm" data-a="exp" data-t="csv">Exportar CSV</button><button class="btn sm" data-a="imp">Importar respaldo</button></div>
     ${U.io ? `<div class="field"><label for="io">${U.io.mode === 'imp' ? 'Pega aquí el respaldo y pulsa Importar' : 'Copia este texto y guárdalo en un archivo'}</label><textarea class="inp" id="io" ${U.io.mode === 'imp' ? '' : 'readonly'} style="font:12px ui-monospace,monospace;min-height:120px">${esc(U.io.text)}</textarea><div class="acts">${U.io.mode === 'imp' ? '<button class="btn sm pri" data-a="doimp">Importar</button><label class="btn sm">Elegir archivo<input type="file" id="iofile" accept=".json,application/json" hidden></label>' : '<button class="btn sm pri" data-a="copy">Copiar</button><button class="btn sm" data-a="dl">Descargar archivo</button>'}<button class="btn sm ghost" data-a="ioclose">Cerrar</button></div>${U.io.err ? `<div class="err">${U.io.err}</div>` : ''}</div>` : ''}</div>
@@ -443,7 +460,8 @@ function sForm() {
   <div class="field"><div class="lab">Momento del día</div>${seg('time', TIMES)}</div>
   <div class="field"><div class="lab">Ícono</div><div class="seg ic">${(ICONS.includes(f.icon) ? ICONS : [f.icon, ...ICONS]).map(i => `<button type="button" data-a="fset" data-k="icon" data-v="${i}" aria-pressed="${f.icon === i}">${i}</button>`).join('')}<button type="button" class="more" data-a="epick" aria-expanded="${!!U.epick}">${U.epick ? 'Cerrar' : '＋ Más'}</button></div>${U.epick ? epickHTML(f) : ''}</div>
   <div class="field"><div class="lab">Color</div><div class="seg col">${COLORS.map((c, i) => `<button type="button" style="--h:${c}" data-a="fset" data-k="color" data-v="${c}" aria-pressed="${f.color === c}" aria-label="Color ${i + 1}"></button>`).join('')}</div></div>
-  <div class="two"><div class="field"><label for="f-rem">Recordatorio</label><input class="inp" id="f-rem" type="time" data-ff="reminder" value="${esc(f.reminder)}"></div><div class="field"><label for="f-since">Desde</label><input class="inp" id="f-since" type="date" data-ff="createdAt" max="${today()}" value="${esc(f.createdAt)}"></div></div>
+  <label class="switch" for="f-remon"><span><b>Notificarme cada día</b><small>${f.reminder ? `Te aviso a las ${f.reminder} si aún no lo has hecho.` : 'Sin aviso diario para este hábito.'}</small></span><input type="checkbox" id="f-remon" data-a="fremind" ${f.reminder ? 'checked' : ''}><i aria-hidden="true"></i></label>
+  <div class="two">${f.reminder ? `<div class="field"><label for="f-rem">Hora del aviso</label><input class="inp" id="f-rem" type="time" data-ff="reminder" value="${esc(f.reminder)}"></div>` : ''}<div class="field"><label for="f-since">Desde</label><input class="inp" id="f-since" type="date" data-ff="createdAt" max="${today()}" value="${esc(f.createdAt)}"></div></div>
   <div class="field"><label for="f-stack">Apilar después de</label><select class="inp" id="f-stack" data-ff="stackAfter"><option value="">Ninguno</option>${others.map(h => `<option value="${h.id}" ${f.stackAfter === h.id ? 'selected' : ''}>${esc(h.name)}</option>`).join('')}</select><span class="muted small">Encadena este hábito a uno que ya haces: “después de X, hago esto”.</span></div>
   <div class="field"><label for="f-id">Identidad</label><input class="inp" id="f-id" data-ff="identity" value="${esc(f.identity)}" placeholder="Soy una persona que…" maxlength="80"></div>
   <div class="field"><div class="lab">Temporizador Pomodoro</div>${seg('pomodoro', [[0, 'Sin temporizador'], [15, '15 min'], [20, '20 min'], [25, '25 min'], [45, '45 min']])}</div>
@@ -509,9 +527,17 @@ function tick() {
     if (!h.reminder || h.reminder > hm || U.noti[h.id] === d || !canMark(h, d) || isDone(h, d) || isSkip(h, d)) continue;
     const mins = now.getHours() * 60 + now.getMinutes() - (+h.reminder.slice(0, 2) * 60 + +h.reminder.slice(3));
     U.noti[h.id] = d; if (mins > 2) continue;
-    try { if (typeof Notification !== 'undefined' && Notification.permission === 'granted') new Notification('Constancia', { body: `${h.icon} ${h.name}` }); } catch (e) { }
+    if (!pushOn()) notify(`${h.icon} ${h.name}`, 'Es tu momento de hoy. ¡Tú puedes!', `${h.id}|${d}`);
     toast(`⏰ ${h.icon} ${h.name}`);
   }
+}
+function notify(title, body, tag) {
+  try {
+    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+    const o = { body, tag, icon: 'icon-192.png', badge: 'icon-192.png' };
+    if (navigator.serviceWorker && navigator.serviceWorker.controller) navigator.serviceWorker.ready.then(r => r.showNotification(title, o));
+    else new Notification(title, o);
+  } catch (e) { }
 }
 function beep() { try { const a = new (window.AudioContext || window.webkitAudioContext)(), o = a.createOscillator(), g = a.createGain(); o.connect(g); g.connect(a.destination); o.frequency.value = 660; g.gain.setValueAtTime(.2, a.currentTime); g.gain.exponentialRampToValueAtTime(.001, a.currentTime + .8); o.start(); o.stop(a.currentTime + .8); } catch (e) { } }
 /* ---------- respaldo ---------- */
@@ -523,7 +549,7 @@ function csv() {
 function newForm(h) {
   const f = h ? JSON.parse(JSON.stringify(h)) : null;
   if (f) { const m = isTimer(f) ? +f.target : 60; f.th = Math.floor(m / 60); f.tm = m % 60; return f; }
-  return Object.assign({ th: 1, tm: 0 },  { id: null, name: '', icon: '✅', color: COLORS[S.habits.length % COLORS.length], type: 'check', target: 8, unit: 'vasos', freq: { kind: 'daily', days: [0, 1, 2, 3, 4], times: 3, every: 2 }, time: 'any', reminder: '', stackAfter: '', identity: '', pomodoro: 0, createdAt: today() });
+  return Object.assign({ th: 1, tm: 0 },  { id: null, name: '', icon: '✅', color: COLORS[S.habits.length % COLORS.length], type: 'check', target: 8, unit: 'vasos', freq: { kind: 'daily', days: [0, 1, 2, 3, 4], times: 3, every: 2 }, time: 'any', reminder: remDefault('any'), stackAfter: '', identity: '', pomodoro: 0, createdAt: today() });
 }
 /* ---------- eventos ---------- */
 const ACT = {
@@ -541,7 +567,7 @@ const ACT = {
   scrim: (e, ev) => { if (ev.target.classList.contains('scrim')) ACT.close(); },
   new: () => { U.form = newForm(); U.ferr = ''; U.epick = false; U.eq = ''; U.sheet = { k: 'form' }; renderSheet(); const i = $('#f-name'); if (i) i.focus(); },
   edit: e => { U.form = newForm(byId(e.h)); U.ferr = ''; U.epick = false; U.eq = ''; U.sheet = { k: 'form' }; renderSheet(); },
-  fset: e => { const ks = e.k.split('.'); let o = U.form; while (ks.length > 1) o = o[ks.shift()]; o[ks[0]] = /^(freq\.times|freq\.every|pomodoro)$/.test(e.k) ? +e.v : e.v; renderSheet(); },
+  fset: e => { if (e.k === 'time' && U.form.reminder && !U.form.remTouched) U.form.reminder = remDefault(e.v); const ks = e.k.split('.'); let o = U.form; while (ks.length > 1) o = o[ks.shift()]; o[ks[0]] = /^(freq\.times|freq\.every|pomodoro)$/.test(e.k) ? +e.v : e.v; renderSheet(); },
   fday: e => { const a = U.form.freq.days, i = +e.v; U.form.freq.days = a.includes(i) ? a.filter(x => x !== i) : a.concat(i); renderSheet(); },
   fsave: () => {
     const f = U.form; f.name = f.name.trim(); f.target = Math.max(1, Math.round(+f.target) || 1);
@@ -552,7 +578,7 @@ const ACT = {
     if (U.ferr) return renderSheet();
     if (f.type === 'timer') { const m = Math.max(0, Math.round(+f.th || 0)) * 60 + Math.max(0, Math.round(+f.tm || 0)); if (m < 1) { U.ferr = 'Ponle una meta de al menos 1 minuto.'; return renderSheet(); } f.target = m; f.unit = ''; }
     else if (f.type !== 'count') { f.target = 1; f.unit = ''; }
-    delete f.th; delete f.tm; delete f.prevType;
+    delete f.th; delete f.tm; delete f.prevType; delete f.remTouched;
     const isNew = !f.id; U.sheet = isNew ? null : { k: 'detail', h: f.id }; U.form = null;
     mutate(() => { if (isNew) { f.id = uid(); S.habits.push(f); } else S.habits[S.habits.findIndex(h => h.id === f.id)] = f; });
     toast(isNew ? 'Hábito creado' : 'Cambios guardados');
@@ -562,6 +588,22 @@ const ACT = {
   tpause: () => { mutate(() => { commitRun(); }); },
   tadd: e => { const h = byId(e.h); if (!canMark(h, e.d)) return; mutate(() => { if (running(h, e.d)) { commitRun(); S.run = { h: h.id, d: e.d, at: Date.now() }; } setEntry(h, e.d, { v: Math.max(0, val(h, e.d) + +e.n), s: 0 }); }); },
   treset: e => { if (U.treset !== e.h) { U.treset = e.h; return renderSheet(); } U.treset = null; const h = byId(e.h); mutate(() => { if (running(h, e.d)) S.run = null; setEntry(h, e.d, { v: 0 }); }); },
+  fremind: () => { const f = U.form; f.reminder = f.reminder ? '' : remDefault(f.time); f.remTouched = false; renderSheet(); },
+  pushon: async () => {
+    const C = window.ConstanciaSync; if (!C || !C.enablePush) return;
+    U.pushBusy = true; render();
+    const r = await C.enablePush().catch(err => 'error:' + (err.code || err.message));
+    U.pushBusy = false;
+    if (r === 'ok') {
+      const sin = habits().filter(h => !h.reminder);
+      if (sin.length) mutate(() => sin.forEach(h => { h.reminder = remDefault(h.time); }));
+      else render();
+      toast(sin.length ? `Avisos activados. Puse hora a ${sin.length} hábito${sin.length > 1 ? 's' : ''}.` : 'Avisos activados en este dispositivo');
+    } else { render(); toast(r === 'denied' ? 'El permiso está bloqueado: actívalo en los ajustes del navegador' : r === 'unsupported' ? 'Este navegador no admite notificaciones' : 'No se pudo activar: ' + r.replace('error:', '')); }
+  },
+  pushoff: async () => { const C = window.ConstanciaSync; if (C && C.disablePush) await C.disablePush().catch(() => { }); render(); toast('Avisos desactivados en este dispositivo'); },
+  pushtest: () => { notify('Constancia', 'Así se verán tus avisos de hábitos.', 'prueba'); },
+  sumtoggle: () => mutate(() => { S.notif = S.notif || {}; S.notif.summary = S.notif.summary ? '' : '20:00'; }),
   epick: () => { U.epick = !U.epick; U.eq = ''; renderSheet(); },
   ecat: e => { U.ecat = e.v; renderSheet(); },
   ftimer: () => { const f = U.form; f.type = f.type === 'timer' ? 'count' : 'timer'; renderSheet(); },
@@ -592,7 +634,8 @@ document.addEventListener('click', ev => {
 });
 document.addEventListener('input', ev => {
   const el = ev.target;
-  if (el.dataset.ff && U.form) U.form[el.dataset.ff] = el.value;
+  if (el.dataset.ff && U.form) { U.form[el.dataset.ff] = el.value; if (el.dataset.ff === 'reminder') U.form.remTouched = true; }
+  else if (el.dataset.f === 'summary') { S.notif = S.notif || {}; if (el.value) { S.notif.summary = el.value; save(); } }
   else if (el.dataset.e === 'q' && U.form) { U.eq = el.value; const g = $('#egrid'); if (g) g.innerHTML = egrid(U.form); const c = $('.ecats'); if (c) c.hidden = !!U.eq; }
   else if (el.dataset.e === 'kb' && U.form) { const e = firstEmoji(el.value); el.value = ''; if (e) { U.form.icon = e; renderSheet(); toast('Ícono: ' + e); } }
   else if (el.dataset.f === 'identity') { S.identity = el.value; save(); }
