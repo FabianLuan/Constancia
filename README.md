@@ -11,4 +11,4 @@ Los datos de cada persona se guardan en `users/{uid}` y las reglas (`firestore.r
 ## Notificaciones diarias
 - En Ajustes › Notificaciones cada dispositivo activa sus avisos (requiere sesión iniciada). El token se guarda en `users/{uid}.push.tokens`.
 - Cada hábito tiene "Notificarme cada día" con su hora (por defecto según el momento del día) y hay un resumen diario de pendientes (20:00 por defecto).
-- `.github/workflows/notify.yml` ejecuta `scripts/notify.mjs` cada 20 minutos (06:00 a 23:59 hora de Chile) y envía con Firebase Cloud Messaging usando el secreto `FIREBASE_SERVICE_ACCOUNT`. Prueba de permisos: ejecutar el flujo a mano con "check".
+- `.github/workflows/notify.yml` ejecuta `scripts/notify.mjs` cada 5 minutos (06:00 a 23:59 hora de Chile) y envía con Firebase Cloud Messaging usando el secreto `FIREBASE_SERVICE_ACCOUNT`. Prueba de permisos: ejecutar el flujo a mano con "check".

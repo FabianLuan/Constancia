@@ -1,8 +1,8 @@
 name: Notificaciones diarias
 on:
   schedule:
-    # Cada 20 minutos entre las 06:00 y las 23:59 de Chile (UTC-3). Cabe en los minutos gratis de un repo privado.
-    - cron: '*/20 0-2,9-23 * * *'
+    # Cada 5 minutos entre las 06:00 y las 23:59 de Chile (UTC-3). El repo es público: minutos de Actions sin límite.
+    - cron: '*/5 0-2,9-23 * * *'
   workflow_dispatch:
     inputs:
       check:

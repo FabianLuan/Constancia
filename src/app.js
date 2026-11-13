@@ -393,7 +393,7 @@ function notifHTML() {
   return `${dev}
   <label class="switch" for="n-sum"><span><b>Resumen diario de pendientes</b><small>${sum ? `A las ${sum} te digo cuántos hábitos te quedan y cuáles son.` : 'Sin resumen diario.'}</small></span><input type="checkbox" id="n-sum" data-a="sumtoggle" ${sum ? 'checked' : ''}><i aria-hidden="true"></i></label>
   ${sum ? `<div class="field"><label for="n-sumt">Hora del resumen</label><input class="inp" id="n-sumt" type="time" data-f="summary" value="${esc(sum)}" style="max-width:160px"></div>` : ''}
-  <p class="muted small" style="margin:0">La hora de aviso de cada hábito se cambia al editarlo. Los avisos llegan con hasta unos 20 minutos de diferencia.</p>`;
+  <p class="muted small" style="margin:0">La hora de aviso de cada hábito se cambia al editarlo. Los avisos llegan con unos minutos de diferencia.</p>`;
 }
 function vAjustes() {
   const np = typeof Notification !== 'undefined' ? Notification.permission : 'unsupported';
