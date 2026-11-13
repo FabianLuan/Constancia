@@ -1,0 +1,36 @@
+name: Notificaciones diarias
+on:
+  schedule:
+    # Cada 20 minutos entre las 06:00 y las 23:59 de Chile (UTC-3). Cabe en los minutos gratis de un repo privado.
+    - cron: '*/20 0-2,9-23 * * *'
+  workflow_dispatch:
+    inputs:
+      check:
+        description: 'Solo revisar permisos y usuarios, sin enviar'
+        type: boolean
+        default: false
+concurrency: notify
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: scripts/package-lock.json
+      - run: npm ci --no-audit --no-fund
+        working-directory: scripts
+      - name: Credenciales de Firebase
+        env:
+          SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: printf '%s' "$SA" > "$RUNNER_TEMP/sa.json"
+      - name: Enviar avisos
+        working-directory: scripts
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/sa.json
+        run: node notify.mjs ${{ inputs.check && '--check' || '' }}
