@@ -327,3 +327,16 @@ textarea.inp{min-height:76px;resize:vertical}
 .ecats button{white-space:nowrap;flex:none}
 .egrid{max-height:232px;overflow-y:auto;overscroll-behavior:contain}
 .egrid .muted{margin:4px}
+/* tarjetas de hábito teñidas con el color elegido */
+.row{background:linear-gradient(100deg,color-mix(in oklab,var(--h) 20%,var(--surface)),color-mix(in oklab,var(--h) 8%,var(--surface)) 70%);border-color:color-mix(in oklab,var(--h) 32%,var(--line))}
+.row.is-done{background:linear-gradient(100deg,color-mix(in oklab,var(--h) 30%,var(--surface)),color-mix(in oklab,var(--h) 16%,var(--surface)) 70%);border-color:color-mix(in oklab,var(--h) 50%,var(--line))}
+.row .chip{background:color-mix(in oklab,var(--h) 30%,var(--surface))}
+.row .meta,.row .q small,.row .tq small{color:color-mix(in oklab,var(--h) 25%,var(--ink2))}
+/* escritorio: panel lateral fijo en su propia capa para que los íconos no tiemblen al hacer scroll */
+@media (min-width:900px){
+  .app{padding-left:208px}
+  .nav{position:fixed;top:0;left:0;bottom:0;height:auto;-webkit-backdrop-filter:none;backdrop-filter:none;transform:translateZ(0);contain:layout paint}
+  .brand{line-height:32px;height:50px}
+  .tab{height:44px;line-height:24px}
+  .tab svg{flex:none;shape-rendering:geometricPrecision}
+}
