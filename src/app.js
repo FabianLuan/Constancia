@@ -21,6 +21,7 @@ const longDate = s => { const d = parse(s); return `${DF[wd(s)]} ${d.getDate()} 
 const shortDate = s => { const d = parse(s); return `${d.getDate()} ${MES[d.getMonth()].slice(0, 3)}`; };
 const pct = x => Math.round(x * 100);
 const COLORS = ['#2F7ED8', '#D9622B', '#1F9E89', '#8B5CD6', '#A8861A', '#D6457A', '#5C6BC0', '#6B8E23'];
+const PALETTE = [...COLORS, '#E53935', '#F4511E', '#FB8C00', '#F9A825', '#C0CA33', '#43A047', '#00897B', '#00ACC1', '#039BE5', '#3949AB', '#5E35B1', '#8E24AA', '#D81B60', '#EC407A', '#8D6E63', '#78909C'];
 const ICONS = ['✅', '💧', '🦷', '🏃', '🏋️', '🧘', '📖', '✍️', '🥗', '🍎', '😴', '⏰', '🧹', '💊', '🎸', '💻', '🧠', '🚭', '📵', '🍬', '🚿', '🐕', '💰', '🙏'];
 const TIMES = [['morning', 'Mañana'], ['afternoon', 'Tarde'], ['evening', 'Noche'], ['any', 'Cualquier momento']];
 const REM = { morning: '08:00', afternoon: '15:00', evening: '21:00', any: '19:00' };
@@ -459,7 +460,10 @@ function sForm() {
     ${f.freq.kind === 'interval' ? seg('freq.every', [2, 3, 4, 5, 7, 14].map(n => [n, 'Cada ' + n])) : ''}</div>
   <div class="field"><div class="lab">Momento del día</div>${seg('time', TIMES)}</div>
   <div class="field"><div class="lab">Ícono</div><div class="seg ic">${(ICONS.includes(f.icon) ? ICONS : [f.icon, ...ICONS]).map(i => `<button type="button" data-a="fset" data-k="icon" data-v="${i}" aria-pressed="${f.icon === i}">${i}</button>`).join('')}<button type="button" class="more" data-a="epick" aria-expanded="${!!U.epick}">${U.epick ? 'Cerrar' : '＋ Más'}</button></div>${U.epick ? epickHTML(f) : ''}</div>
-  <div class="field"><div class="lab">Color</div><div class="seg col">${COLORS.map((c, i) => `<button type="button" style="--h:${c}" data-a="fset" data-k="color" data-v="${c}" aria-pressed="${f.color === c}" aria-label="Color ${i + 1}"></button>`).join('')}</div></div>
+  <div class="field"><div class="lab">Color</div>${(() => { const lc = c => String(c || '').toLowerCase(), pal = PALETTE.map(lc), mine = [...new Set(S.habits.map(h => lc(h.color)).filter(c => /^#[0-9a-f]{6}$/.test(c) && !pal.includes(c)))].slice(0, 8), cur = lc(f.color), custom = !pal.includes(cur);
+    return `<div class="lab small muted">Recomendados</div><div class="seg col">${PALETTE.map((c, i) => `<button type="button" style="--h:${c}" data-a="fset" data-k="color" data-v="${c}" aria-pressed="${cur === lc(c)}" aria-label="Color ${i + 1}"></button>`).join('')}</div>
+    ${mine.length ? `<div class="lab small muted" style="margin-top:4px">Tus colores</div><div class="seg col">${mine.map(c => `<button type="button" style="--h:${c}" data-a="fset" data-k="color" data-v="${c}" aria-pressed="${cur === c}" aria-label="Color ${c}"></button>`).join('')}</div>` : ''}
+    <label class="cpick ${custom ? 'on' : ''}" style="--h:${esc(f.color)}"><input type="color" data-ff="color" value="${esc(/^#[0-9a-f]{6}$/i.test(f.color) ? f.color : '#2f7ed8')}"><i aria-hidden="true"></i><span><b>Elegir otro color</b><small>${custom ? esc(f.color.toUpperCase()) : 'Cualquier tono, con el selector'}</small></span></label>`; })()}</div>
   <label class="switch" for="f-remon"><span><b>Notificarme cada día</b><small>${f.reminder ? `Te aviso a las ${f.reminder} si aún no lo has hecho.` : 'Sin aviso diario para este hábito.'}</small></span><input type="checkbox" id="f-remon" data-a="fremind" ${f.reminder ? 'checked' : ''}><i aria-hidden="true"></i></label>
   <div class="two">${f.reminder ? `<div class="field"><label for="f-rem">Hora del aviso</label><input class="inp" id="f-rem" type="time" data-ff="reminder" value="${esc(f.reminder)}"></div>` : ''}<div class="field"><label for="f-since">Desde</label><input class="inp" id="f-since" type="date" data-ff="createdAt" max="${today()}" value="${esc(f.createdAt)}"></div></div>
   <div class="field"><label for="f-stack">Apilar después de</label><select class="inp" id="f-stack" data-ff="stackAfter"><option value="">Ninguno</option>${others.map(h => `<option value="${h.id}" ${f.stackAfter === h.id ? 'selected' : ''}>${esc(h.name)}</option>`).join('')}</select><span class="muted small">Encadena este hábito a uno que ya haces: “después de X, hago esto”.</span></div>
@@ -644,6 +648,7 @@ document.addEventListener('input', ev => {
 document.addEventListener('change', ev => {
   const el = ev.target;
   if (el.id === 'iofile' && el.files[0]) { const r = new FileReader(); r.onload = () => { U.io.text = String(r.result); U.io.err = ''; render(); }; r.readAsText(el.files[0]); }
+  else if (el.dataset.ff === 'color' && U.form) renderSheet();
   else if (el.dataset.f === 'note') render();
 });
 document.addEventListener('keydown', ev => { if (ev.key === 'Escape' && U.sheet) ACT.close(); });

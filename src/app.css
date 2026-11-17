@@ -340,3 +340,13 @@ textarea.inp{min-height:76px;resize:vertical}
   .tab{height:44px;line-height:24px}
   .tab svg{flex:none;shape-rendering:geometricPrecision}
 }
+/* selector de color libre */
+.seg.col{gap:8px}
+.cpick{position:relative;display:flex;align-items:center;gap:12px;margin-top:8px;padding:8px 12px 8px 8px;border:1px dashed var(--line);border-radius:14px;cursor:pointer;width:max-content;max-width:100%}
+.cpick input{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none}
+.cpick i{width:34px;height:34px;border-radius:50%;flex:none;background:conic-gradient(#e53935,#fb8c00,#fdd835,#43a047,#00acc1,#3949ab,#8e24aa,#e53935);position:relative}
+.cpick i::after{content:"";position:absolute;inset:7px;border-radius:50%;background:var(--h);box-shadow:0 0 0 2px var(--surface)}
+.cpick span{display:flex;flex-direction:column;font-size:.86rem}
+.cpick small{color:var(--ink2);font-size:.76rem}
+.cpick.on{border-style:solid;border-color:color-mix(in oklab,var(--h) 60%,var(--line))}
+.cpick:focus-within{outline:2px solid var(--accent);outline-offset:2px}
