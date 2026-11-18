@@ -49,7 +49,9 @@ export function dueMessages(S, now, sent = []) {
   const inWin = hm => hm && /^\d\d:\d\d$/.test(hm) && toMin(hm) <= nm && nm - toMin(hm) <= WINDOW;
   for (const h of pend) {
     if (!inWin(h.reminder) || sent.includes(h.id)) continue;
-    out.push({ id: h.id, title: `${h.icon || '⏰'} ${h.name}`, body: `Es tu momento de hoy${progress(S, h, now.date)}. ¡Tú puedes!` });
+    const y = (h.type === 'count' || h.type === 'timer') ? (ent(S, h, addDays(now.date, -1)).v || 0) : 0;
+    const ytxt = y ? ` Ayer llegaste a ${h.type === 'timer' ? Math.round(y / 60) + ' min' : y + ' ' + (h.unit || '')}`.trimEnd() + '. ¡Hoy supéralo!' : ' ¡Tú puedes!';
+    out.push({ id: h.id, title: `${h.icon || '⏰'} ${h.name}`, body: `Es tu momento de hoy${progress(S, h, now.date)}.${ytxt}` });
   }
   const sum = S.notif ? S.notif.summary : '20:00';
   if (inWin(sum) && !sent.includes('_sum') && pend.length) {

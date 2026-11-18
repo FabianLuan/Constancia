@@ -27,6 +27,7 @@ const ICONS = ['✅', '💧', '🦷', '🏃', '🏋️', '🧘', '📖', '✍️
 const TIMES = [['morning', 'Mañana'], ['afternoon', 'Tarde'], ['evening', 'Noche'], ['any', 'Cualquier momento']];
 const REM = { morning: '08:00', afternoon: '15:00', evening: '21:00', any: '19:00' };
 const remDefault = t => REM[t] || REM.any;
+const reduced = () => { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } };
 const pushOn = () => { try { return !!localStorage.getItem('constancia.push') && Notification.permission === 'granted'; } catch (e) { return false; } };
 const CHECK = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
 
@@ -284,6 +285,31 @@ function ring(p, label) {
   const r = 44, c = 2 * Math.PI * r;
   return `<div class="ring"><svg viewBox="0 0 104 104"><circle class="t" cx="52" cy="52" r="${r}"/><circle class="v" cx="52" cy="52" r="${r}" stroke-dasharray="${c}" stroke-dashoffset="${c * (1 - (p || 0))}"/></svg><div class="lab num">${label}</div></div>`;
 }
+// Mejora diaria: la última vez (antes de d) que hubo avance, para invitar a superarla.
+function prevVal(h, d) {
+  for (let i = 1; i <= 14; i++) { const x = add(d, -i); if (x < h.createdAt) break; const v = val(h, x); if (v > 0) return { d: x, v }; }
+  return null;
+}
+const amt = (h, v) => isTimer(h) ? fmtGoal(Math.max(1, Math.round(v / 60))) : `${v} ${h.unit || ''}`.trim();
+const whenLbl = (x, d) => x === add(d, -1) ? 'Ayer' : `El ${DF[wd(x)]}`;
+function beatHTML(h, d) {
+  if (!(isTimer(h) || h.type === 'count') || !canMark(h, d)) return '';
+  const pv = prevVal(h, d); if (!pv) return '';
+  const cur = isTimer(h) ? liveSec(h, d) : val(h, d), unit = isTimer(h) ? 60 : 1;
+  const diffV = Math.floor(cur / unit) - Math.floor(pv.v / unit);
+  if (diffV > 0) return `<span class="up">↑ +${isTimer(h) ? fmtGoal(diffV) : diffV} vs ${whenLbl(pv.d, d).toLowerCase()}</span>`;
+  if (diffV === 0 && cur > 0) return `<span class="beat">Igualaste ${whenLbl(pv.d, d).toLowerCase()}: uno más y lo superas</span>`;
+  return `<span class="beat">${whenLbl(pv.d, d)} llegaste a ${amt(h, pv.v)}. ¡Hoy supéralo!</span>`;
+}
+function trendHTML(h) {
+  if (!(isTimer(h) || h.type === 'count')) return '';
+  const t = today(), days = Array.from({ length: 14 }, (_, i) => add(t, i - 13)), vs = days.map(x => val(h, x)), g = goalOf(h), mx = Math.max(g, ...vs, 1);
+  const due = (a, b) => days.slice(a, b).filter(x => canMark(h, x) && x !== t), avg = arr => arr.length ? arr.reduce((s, x) => s + val(h, x), 0) / arr.length : 0;
+  const a1 = avg(due(7, 14)), a0 = avg(due(0, 7)), ch = a0 > 0 ? Math.round((a1 - a0) / a0 * 100) : null;
+  const best = Math.max(...vs);
+  return `<div class="field"><div class="lab">Tu avance día a día</div><div class="trend" style="--h:${h.color}">${days.map((x, i) => `<div class="${x === t ? 'tod' : ''}" title="${shortDate(x)}: ${amt(h, vs[i])}"><i style="height:${Math.round(vs[i] / mx * 100)}%" class="${vs[i] >= g ? 'ok' : ''}"></i></div>`).join('')}<span class="gl" style="bottom:${Math.round(g / mx * 100)}%"></span></div>
+  <p class="muted small" style="margin:0">${ch == null ? 'Sigue registrando para ver tu tendencia.' : ch > 0 ? `<b class="upt">↑ ${ch}%</b> de promedio esta semana frente a la anterior. Un poco mejor cada día.` : ch === 0 ? 'Mismo promedio que la semana pasada. Súmale un poquito hoy.' : `Promedio ${Math.abs(ch)}% bajo la semana pasada. Hoy es buen día para remontar.`}${best > 0 ? ` Tu mejor día reciente: ${amt(h, best)}.` : ''}</p></div>`;
+}
 function habitRow(h, d) {
   const m = metrics(h), e = entry(h, d) || {}, done = isDone(h, d), can = canMark(h, d);
   const meta = [];
@@ -293,6 +319,7 @@ function habitRow(h, d) {
   const st = h.stackAfter && byId(h.stackAfter); if (st) meta.push(`Después de: ${esc(st.name)}`);
   if (m.risk && !done && d === today()) meta.push('<span class="fire">No falles dos veces</span>');
   if (e.n) meta.push('📝 nota');
+  const bt = beatHTML(h, d); if (bt) meta.push(bt);
   let ctl;
   if (e.s) ctl = `<button class="tag" data-a="tog" data-h="${h.id}" data-d="${d}">Omitido · deshacer</button>`;
   else if (isTimer(h)) ctl = timerCtl(h, d, can);
@@ -427,6 +454,7 @@ function sDetail(h) {
   return `<div class="top"><div style="display:flex;gap:12px;align-items:center;min-width:0"><div class="chip" style="--h:${h.color}">${h.icon}</div><div style="min-width:0"><h2>${esc(h.name)}</h2><div class="muted small">${freqText(h)}${h.type === 'count' ? ` · meta ${h.target} ${esc(h.unit)}` : isTimer(h) ? ` · meta ${fmtGoal(h.target)}` : ''}${h.type === 'quit' ? ' · hábito por dejar' : ''}</div></div></div><button class="btn sm ghost" data-a="close">Cerrar</button></div>
   ${h.identity ? `<div class="muted">“${esc(h.identity)}”</div>` : ''}
   <div class="stats4"><div><b class="num">${m.streak}</b>racha (${m.unit})</div><div><b class="num">${m.best}</b>mejor racha</div><div><b class="num">${pct(m.strength)}%</b>fuerza</div><div><b class="num">${r30.pct == null ? '–' : pct(r30.pct) + '%'}</b>últimos 30 días</div></div>
+  ${trendHTML(h)}
   <div class="field"><div class="lab">Último año</div><div class="scrollx" data-k="heat" data-end="1" style="padding:10px;--h:${h.color}"><div class="heat">${heat(h)}</div></div></div>
   <div class="card" style="display:flex;flex-direction:column;gap:10px"><div class="eyebrow">${d === today() ? 'Hoy' : longDate(d)}</div>
     ${can && isTimer(h) ? `${timerCtl(h, d, can, true)}<div class="acts"><button class="btn sm" data-a="tadd" data-h="${h.id}" data-d="${d}" data-n="-300">− 5 min</button><button class="btn sm" data-a="tadd" data-h="${h.id}" data-d="${d}" data-n="300">+ 5 min</button><button class="btn sm" data-a="tadd" data-h="${h.id}" data-d="${d}" data-n="900">+ 15 min</button><button class="btn sm ghost" data-a="treset" data-h="${h.id}" data-d="${d}">${U.treset === h.id ? '¿Seguro? Volver a 0' : 'Reiniciar'}</button></div>` : ''}
@@ -531,7 +559,7 @@ function tickFocus() {
   document.querySelectorAll('[data-fring]').forEach(el => el.style.strokeDashoffset = RING_C * (1 - p));
   const bar = $('#fbar'); if (!bar) return;
   const show = fRunning() && U.tab !== 'enfoque' && !U.zen;
-  const html = show ? `<div class="pp"><span>${f.mode === 'focus' ? '🎯' : '☕'} ${txt}</span><small>${f.mode === 'focus' ? 'Enfoque' : 'Descanso'}</small><button data-a="fpause">Pausar</button></div>` : '';
+  const html = show ? `<div class="pp"><i class="grip" aria-hidden="true"></i><span>${f.mode === 'focus' ? '🎯' : '☕'} ${txt}</span><small>${f.mode === 'focus' ? 'Enfoque' : 'Descanso'}</small><button data-a="fpause">Pausar</button></div>` : '';
   if (bar.innerHTML !== html) bar.innerHTML = html;
 }
 function focusRing(big) {
@@ -610,7 +638,8 @@ function render() {
   $('#nav').innerHTML = navHTML();
   const v = $('#view');
   keepScroll(v, () => { v.innerHTML = ({ hoy: vHoy, enfoque: vEnfoque, semana: vSemana, mes: vMes, progreso: vProgreso, ajustes: vAjustes })[U.tab](); });
-  if (U.enter) { U.enter = false; v.classList.remove('enter'); void v.offsetWidth; v.classList.add('enter'); }
+  if (U.enter) { v.style.setProperty('--dir', U.enter === -1 ? -1 : 1); U.enter = false; v.classList.remove('enter'); void v.offsetWidth; v.classList.add('enter'); clearTimeout(U.enterT); U.enterT = setTimeout(() => v.classList.remove('enter'), 700); }
+  if (U.daySlide) { v.style.setProperty('--dd', U.daySlide); v.classList.remove('dslide'); void v.offsetWidth; v.classList.add('dslide'); U.daySlide = 0; clearTimeout(U.dsT); U.dsT = setTimeout(() => v.classList.remove('dslide'), 400); }
   renderSheet();
   const z = $('#zen'); if (z) z.innerHTML = U.zen ? zenHTML() : ''; document.body.classList.toggle('zen-on', !!U.zen);
   U.just = null; U.lastP = dayPct(U.day).p || 0;
@@ -643,7 +672,7 @@ function tickRun() {
   document.querySelectorAll(`[data-hbar="${h.id}|${d}"]`).forEach(el => el.style.transform = `scaleX(${Math.min(1, sec / g)})`);
   document.querySelectorAll(`[data-hring="${h.id}|${d}"]`).forEach(el => el.style.strokeDashoffset = RING_C * (1 - Math.min(1, sec / g)));
   document.querySelectorAll(`[data-hleft="${h.id}|${d}"]`).forEach(el => { const t = sec >= g ? 'Meta cumplida ✓' : 'Faltan ' + fmtGoal(Math.ceil((g - sec) / 60)); if (el.textContent !== t) el.textContent = t; });
-  const html = `<div class="pp"><span>⏱ ${fmtT(sec)}</span><small>${esc(h.name)}</small><button data-a="tab" data-t="enfoque">Ver</button><button data-a="tpause">Pausar</button></div>`;
+  const html = `<div class="pp"><i class="grip" aria-hidden="true"></i><span>⏱ ${fmtT(sec)}</span><small>${esc(h.name)}</small><button data-a="tab" data-t="enfoque">Ver</button><button data-a="tpause">Pausar</button></div>`;
   const out = U.tab === 'enfoque' && !U.zen ? '' : html;
   if (bar.innerHTML !== out) bar.innerHTML = out;
 }
@@ -655,7 +684,7 @@ function tick() {
     if (left <= 0 || !h) {
       const p = U.pomo; U.pomo = null; el.innerHTML = '';
       if (h) { beep(); mutate(() => { S.pomos++; const d = today(); if (canMark(h, d)) { if (isTimer(h)) setEntry(h, d, { v: val(h, d) + p.mins * 60, s: 0 }); else if (h.type === 'count' && /min/i.test(h.unit)) setEntry(h, d, { v: val(h, d) + p.mins, s: 0 }); else if (h.type !== 'count') setEntry(h, d, { v: 1, s: 0 }); } }); toast(`🍅 Sesión terminada: ${h.name}`); }
-    } else el.innerHTML = `<div class="pp"><span>🍅 ${pad(Math.floor(left / 60))}:${pad(left % 60)}</span><small>${esc(h.name)}</small><button data-a="pomostop">Detener</button></div>`;
+    } else el.innerHTML = `<div class="pp"><i class="grip" aria-hidden="true"></i><span>🍅 ${pad(Math.floor(left / 60))}:${pad(left % 60)}</span><small>${esc(h.name)}</small><button data-a="pomostop">Detener</button></div>`;
   }
   const now = new Date(), hm = `${pad(now.getHours())}:${pad(now.getMinutes())}`, d = today();
   U.noti = U.noti || {};
@@ -689,9 +718,16 @@ function newForm(h) {
 }
 /* ---------- eventos ---------- */
 const ACT = {
-  tab: e => { if (U.tab !== e.t) U.enter = true; U.tab = e.t; U.io = null; U.wipe = false; render(); window.scrollTo(0, 0); },
-  day: e => { U.day = e.d; render(); },
-  dshift: e => { U.day = add(U.day, +e.n); render(); },
+  tab: e => {
+    if (U.tab === e.t) return;
+    const ks = TABS.map(t => t[0]), dir = ks.indexOf(e.t) > ks.indexOf(U.tab) ? 1 : -1, v = $('#view');
+    const go = () => { U.enter = dir; U.tab = e.t; U.io = null; U.wipe = false; render(); window.scrollTo(0, 0); };
+    if (reduced() || !v.firstElementChild) return go();
+    clearTimeout(U.leaveT); v.style.setProperty('--dir', dir); v.classList.remove('enter'); v.classList.add('leave');
+    U.leaveT = setTimeout(() => { v.classList.remove('leave'); go(); }, 130);
+  },
+  day: e => { if (e.d !== U.day) { U.daySlide = e.d > U.day ? 1 : -1; U.day = e.d; } render(); },
+  dshift: e => { U.daySlide = +e.n > 0 ? 1 : -1; U.day = add(U.day, +e.n); render(); },
   wshift: e => { U.week = add(U.week, +e.n); render(); },
   mshift: e => { U.month = shiftMonth(U.month, +e.n); render(); },
   tog: e => toggle(byId(e.h), e.d),
@@ -795,6 +831,36 @@ document.addEventListener('change', ev => {
   else if (el.dataset.f === 'note') render();
 });
 document.addEventListener('keydown', ev => { if (ev.key === 'Escape' && U.sheet) ACT.close(); else if (ev.key === 'Escape' && U.zen) ACT.zenx(); });
+(() => {
+  const dock = $('#dock'), KEYD = 'constancia.dock';
+  let st = null, moved = false;
+  const place = (x, y) => {
+    const r = dock.getBoundingClientRect(), m = 8;
+    x = Math.min(Math.max(m, x), innerWidth - r.width - m); y = Math.min(Math.max(m, y), innerHeight - r.height - m);
+    Object.assign(dock.style, { left: x + 'px', top: y + 'px', right: 'auto', bottom: 'auto' });
+    return { x, y };
+  };
+  try { const p = JSON.parse(localStorage.getItem(KEYD) || 'null'); if (p) requestAnimationFrame(() => place(p.x * innerWidth, p.y * innerHeight)); } catch (e) { }
+  dock.addEventListener('pointerdown', ev => {
+    if (!ev.target.closest('.pp') || ev.button > 0) return;
+    const r = dock.getBoundingClientRect(); st = { x: ev.clientX, y: ev.clientY, ox: r.left, oy: r.top, id: ev.pointerId }; moved = false;
+  });
+  window.addEventListener('pointermove', ev => {
+    if (!st || ev.pointerId !== st.id) return;
+    const dx = ev.clientX - st.x, dy = ev.clientY - st.y;
+    if (!moved && Math.hypot(dx, dy) < 6) return;
+    if (!moved) { moved = true; dock.classList.add('dragging'); try { dock.setPointerCapture(st.id); } catch (e) { } }
+    ev.preventDefault(); place(st.ox + dx, st.oy + dy);
+  }, { passive: false });
+  const end = () => {
+    if (!st) return; st = null; dock.classList.remove('dragging');
+    if (moved) { const r = dock.getBoundingClientRect(); try { localStorage.setItem(KEYD, JSON.stringify({ x: r.left / innerWidth, y: r.top / innerHeight })); } catch (e) { } setTimeout(() => { moved = false; }, 0); }
+  };
+  window.addEventListener('pointerup', end); window.addEventListener('pointercancel', end);
+  dock.addEventListener('click', ev => { if (moved) { ev.stopPropagation(); ev.preventDefault(); } }, true);
+  dock.addEventListener('dblclick', () => { try { localStorage.removeItem(KEYD); } catch (e) { } Object.assign(dock.style, { left: '', top: '', right: '', bottom: '' }); });
+  window.addEventListener('resize', () => { if (dock.style.left) { const r = dock.getBoundingClientRect(); place(r.left, r.top); } });
+})();
 document.addEventListener('submit', ev => {
   if (ev.target.dataset.aSubmit !== 'taddtask') return;
   ev.preventDefault(); const i = $('#f-task'), t = i.value.trim(); if (!t) return;

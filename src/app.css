@@ -429,3 +429,48 @@ body.zen-on #dock{display:none}
 .zrun .fring.hr{width:min(40vw,24vh,180px)}
 .zrun .fring.hr .in b{font-size:1.8rem}
 .fring.hr .in .small{max-width:80%;text-align:center}
+/* ---------- transiciones armoniosas ---------- */
+:root{--spring:cubic-bezier(.32,.72,0,1)}
+#view.leave{animation:vleave 130ms ease-in forwards}
+@keyframes vleave{to{opacity:0;transform:translateX(calc(var(--dir,1) * -14px))}}
+#view.enter{animation:none}
+#view.enter>*{animation:vrise 420ms var(--spring) both}
+#view.enter>*:nth-child(2){animation-delay:40ms}#view.enter>*:nth-child(3){animation-delay:80ms}#view.enter>*:nth-child(4){animation-delay:120ms}#view.enter>*:nth-child(5){animation-delay:160ms}#view.enter>*:nth-child(6){animation-delay:200ms}#view.enter>*:nth-child(n+7){animation-delay:240ms}
+@keyframes vrise{from{opacity:0;transform:translate(calc(var(--dir,1) * 18px),6px)}}
+#view.dslide .row,#view.dslide .grp,#view.dslide .list{animation:dslide 320ms var(--spring) both}
+@keyframes dslide{from{opacity:.2;transform:translateX(calc(var(--dd,1) * 22px))}}
+.sheet{animation:sheetin 380ms var(--spring)}
+@keyframes sheetin{from{transform:translateY(40px) scale(.98);opacity:0}}
+.scrim{animation:fade 260ms ease-out}
+.scrim .sheet>*{animation:vrise 380ms var(--spring) both}
+.scrim .sheet>*:nth-child(2){animation-delay:30ms}.scrim .sheet>*:nth-child(3){animation-delay:60ms}.scrim .sheet>*:nth-child(n+4){animation-delay:90ms}
+.scrim.still .sheet>*{animation:none}
+.btn,.seg button,.dayb,.tab,.check,.step button,.tbtn,.tck{transition:transform 160ms var(--spring),background-color 200ms ease,color 200ms ease,border-color 200ms ease,box-shadow 200ms ease}
+@media (hover:hover){.btn:hover,.seg button:hover,.dayb:hover{transform:translateY(-1px);box-shadow:0 4px 14px -6px rgba(0,0,0,.25)}.row{transition:transform 200ms var(--spring),box-shadow 200ms ease,background .25s}.row:hover{transform:translateY(-1px);box-shadow:0 8px 22px -14px color-mix(in oklab,var(--h) 70%,transparent)}}
+.btn:active,.seg button:active,.dayb:active{transform:scale(.96)}
+.row.just .q{animation:bump 300ms var(--spring)}
+@keyframes bump{40%{transform:scale(1.18)}}
+#toast div{animation:toastin 320ms var(--spring)}
+@keyframes toastin{from{opacity:0;transform:translateY(12px) scale(.96)}}
+.tasks li{animation:vrise 300ms var(--spring) both}
+.epick,.cpick,.switch+.two,.switch+.field{animation:vrise 280ms var(--spring) both}
+/* mejora diaria */
+.meta .beat{color:color-mix(in oklab,var(--h) 55%,var(--ink2));font-weight:600}
+.meta .up{color:#1F9E5A;font-weight:700}
+[data-theme="dark"] .meta .up{color:#4fd18b}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .meta .up{color:#4fd18b}}
+.trend{position:relative;display:grid;grid-template-columns:repeat(14,1fr);gap:4px;height:90px;padding:6px 0;border-bottom:1px solid var(--line)}
+.trend div{display:flex;align-items:flex-end}
+.trend i{display:block;width:100%;min-height:2px;border-radius:5px 5px 2px 2px;background:color-mix(in oklab,var(--h) 45%,var(--surface));animation:tgrow 500ms var(--spring) both;transform-origin:bottom}
+@keyframes tgrow{from{transform:scaleY(0)}}
+.trend i.ok{background:var(--h)}
+.trend .tod i{outline:2px solid color-mix(in oklab,var(--h) 60%,transparent);outline-offset:1px}
+.trend .gl{position:absolute;left:0;right:0;border-top:1.5px dashed color-mix(in oklab,var(--h) 70%,var(--ink3));pointer-events:none}
+.upt{color:#1F9E5A}
+/* barra flotante arrastrable */
+#dock .pp{touch-action:none;user-select:none;-webkit-user-select:none;cursor:grab}
+#dock.dragging .pp{cursor:grabbing;transform:scale(1.04);box-shadow:0 16px 40px -10px rgba(0,0,0,.45)}
+#dock .pp{transition:transform 160ms var(--spring),box-shadow 160ms ease}
+#dock .grip{width:8px;height:18px;margin-left:-6px;flex:none;opacity:.55;background:radial-gradient(circle,currentColor 1.2px,transparent 1.6px) 0 0/4px 6px}
+#dock .pp button{cursor:pointer}
+@media (prefers-reduced-motion:reduce){#view.enter>*,#view.leave,#view.dslide .row,.scrim .sheet>*,.trend i,.tasks li,.epick,.cpick{animation:none!important}}
