@@ -11,13 +11,19 @@ import com.getcapacitor.WebViewListener;
 public class MainActivity extends BridgeActivity {
     // Altura de la barra de estado y de navegación en px CSS; se envía a la página en cada carga.
     private void sendInsets(WebView wv) {
-        WindowInsetsCompat w = ViewCompat.getRootWindowInsets(wv);
-        if (w == null) return;
-        Insets i = w.getInsets(WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());
         float d = getResources().getDisplayMetrics().density;
+        int top = 0, bottom = 0;
+        WindowInsetsCompat w = ViewCompat.getRootWindowInsets(getWindow().getDecorView());
+        if (w != null) {
+            Insets i = w.getInsets(WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());
+            top = i.top; bottom = i.bottom;
+        }
+        // Respaldo: alto de la barra de estado que declara el sistema.
+        int rid = getResources().getIdentifier("status_bar_height", "dimen", "android");
+        if (rid > 0) top = Math.max(top, getResources().getDimensionPixelSize(rid));
         String js = String.format(java.util.Locale.US,
             "document.documentElement.style.setProperty('--native-sat','%.1fpx');document.documentElement.style.setProperty('--native-sab','%.1fpx');document.documentElement.dataset.native='1';",
-            i.top / d, i.bottom / d);
+            top / d, bottom / d);
         wv.evaluateJavascript(js, null);
     }
 

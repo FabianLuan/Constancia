@@ -458,7 +458,7 @@ function vAjustes() {
   <div class="card"><div class="lab eyebrow">Nube</div>${cloudHTML()}</div>
   <div class="card"><div class="lab eyebrow">Respaldo</div><div class="acts"><button class="btn sm" data-a="exp" data-t="json">Exportar respaldo</button><button class="btn sm" data-a="exp" data-t="csv">Exportar CSV</button><button class="btn sm" data-a="imp">Importar respaldo</button></div>
     ${U.io ? `<div class="field"><label for="io">${U.io.mode === 'imp' ? 'Pega aquí el respaldo y pulsa Importar' : 'Copia este texto y guárdalo en un archivo'}</label><textarea class="inp" id="io" ${U.io.mode === 'imp' ? '' : 'readonly'} style="font:12px ui-monospace,monospace;min-height:120px">${esc(U.io.text)}</textarea><div class="acts">${U.io.mode === 'imp' ? '<button class="btn sm pri" data-a="doimp">Importar</button><label class="btn sm">Elegir archivo<input type="file" id="iofile" accept=".json,application/json" hidden></label>' : '<button class="btn sm pri" data-a="copy">Copiar</button><button class="btn sm" data-a="dl">Descargar archivo</button>'}<button class="btn sm ghost" data-a="ioclose">Cerrar</button></div>${U.io.err ? `<div class="err">${U.io.err}</div>` : ''}</div>` : ''}</div>
-  <div class="card"><div class="lab eyebrow">Versión</div><p class="small" style="margin:0">Constancia ${APP_VERSION}${window.ConstanciaSync && window.ConstanciaSync.appInfo ? ` · app Android ${esc(window.ConstanciaSync.appInfo.version)}` : ''}</p><div class="acts"><button class="btn sm" data-a="news">Ver novedades</button>${apkOutdated() ? '<button class="btn sm pri" data-a="getapk">Descargar app nueva</button>' : ''}</div></div>
+  <div class="card"><div class="lab eyebrow">Versión</div><p class="small" style="margin:0">Constancia ${APP_VERSION}${window.ConstanciaSync && window.ConstanciaSync.appInfo ? ` · app Android ${esc(window.ConstanciaSync.appInfo.version)}` : ''}</p><p class="muted small" style="margin:0">Pantalla: barra ${measureSat()} px · nativa ${esc(getComputedStyle(document.documentElement).getPropertyValue('--native-sat').trim() || '–')} · sistema ${esc(getComputedStyle(document.documentElement).getPropertyValue('--safe-area-inset-top').trim() || '–')} · ${innerWidth}×${innerHeight} / ${screen.width}×${screen.height}</p><div class="acts"><button class="btn sm" data-a="news">Ver novedades</button>${apkOutdated() ? '<button class="btn sm pri" data-a="getapk">Descargar app nueva</button>' : ''}</div></div>
   <div class="card"><div class="lab eyebrow">Datos</div><div class="acts"><button class="btn sm" data-a="loaddemo">Cargar datos de ejemplo</button><button class="btn sm danger" data-a="wipe">${U.wipe ? '¿Seguro? Borrar todo' : 'Borrar todo'}</button></div></div></div>`;
 }
 /* ---------- hojas ---------- */
@@ -918,13 +918,17 @@ document.addEventListener('keydown', ev => { if (ev.key === 'Escape' && U.sheet)
   dock.addEventListener('dblclick', () => { try { localStorage.removeItem(KEYD); } catch (e) { } Object.assign(dock.style, { left: '', top: '', right: '', bottom: '' }); });
   window.addEventListener('resize', () => { if (dock.style.left) { const r = dock.getBoundingClientRect(); place(r.left, r.top); } });
 })();
-// Barra de estado: si la app Android no informó su altura y la página ocupa toda la pantalla, se usa una estimación.
-setTimeout(() => {
-  const r = document.documentElement;
-  if (!window.Capacitor || r.dataset.native) return;
-  const cs = getComputedStyle(r), has = v => parseFloat(cs.getPropertyValue(v)) > 0;
-  if (!has('--safe-area-inset-top') && innerHeight >= screen.height - 8) r.style.setProperty('--fallback-sat', '34px');
-}, 1500);
+// Barra de estado: mide el espacio superior real; si en la app Android da 0, usa una estimación según el sistema.
+function measureSat() {
+  const pr = document.createElement('div'); pr.style.cssText = 'position:fixed;visibility:hidden;height:var(--sat)'; document.body.appendChild(pr);
+  const h = pr.offsetHeight; pr.remove(); return h;
+}
+function fixSat() {
+  const r = document.documentElement, android = /Android/i.test(navigator.userAgent);
+  if (!window.Capacitor || !android) return;
+  if (measureSat() < 4) r.style.setProperty('--fallback-sat', '40px');
+}
+setTimeout(fixSat, 300); setTimeout(fixSat, 1500);
 // Deslizar hacia abajo para recargar (app instalada).
 (() => {
   const standalone = !!window.Capacitor || (window.matchMedia && matchMedia('(display-mode: standalone)').matches);
