@@ -479,3 +479,11 @@ body.zen-on #dock{display:none}
 .news{display:flex;flex-direction:column;gap:6px}
 .news ul{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px}
 .sheet[data-k="news"]{display:flex;flex-direction:column;gap:16px}
+/* barra de estado del celular (app Android y PWA a pantalla completa) */
+:root{--sat:max(env(safe-area-inset-top,0px),var(--safe-area-inset-top,0px))}
+main{padding-top:calc(18px + var(--sat))}
+@media (min-width:900px){main{padding-top:calc(28px + var(--sat))}.nav{padding-top:calc(22px + var(--sat))}}
+.sheet{max-height:calc(100% - var(--sat) - 12px)}
+.zen{padding-top:calc(24px + var(--sat))}
+.zen .zx{top:calc(14px + var(--sat))}
+.applogin{padding-top:calc(24px + var(--sat))}
