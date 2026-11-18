@@ -19,6 +19,7 @@ const DF = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'do
 const MES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 const longDate = s => { const d = parse(s); return `${DF[wd(s)]} ${d.getDate()} de ${MES[d.getMonth()]}`; };
 const shortDate = s => { const d = parse(s); return `${d.getDate()} ${MES[d.getMonth()].slice(0, 3)}`; };
+const unitN = (u, n) => n === 1 ? ({ 'días': 'día', 'días limpio': 'día limpio', 'sem': 'sem' }[u] || u) : u;
 const pct = x => Math.round(x * 100);
 const COLORS = ['#2F7ED8', '#D9622B', '#1F9E89', '#8B5CD6', '#A8861A', '#D6457A', '#5C6BC0', '#6B8E23'];
 const PALETTE = [...COLORS, '#E53935', '#F4511E', '#FB8C00', '#F9A825', '#C0CA33', '#43A047', '#00897B', '#00ACC1', '#039BE5', '#3949AB', '#5E35B1', '#8E24AA', '#D81B60', '#EC407A', '#8D6E63', '#78909C'];
@@ -285,7 +286,7 @@ function ring(p, label) {
 function habitRow(h, d) {
   const m = metrics(h), e = entry(h, d) || {}, done = isDone(h, d), can = canMark(h, d);
   const meta = [];
-  if (m.streak > 0) meta.push(`<span class="fire">🔥 ${m.streak} ${m.unit}</span>`);
+  if (m.streak > 0) meta.push(`<span class="fire">🔥 ${m.streak} ${unitN(m.unit, m.streak)}</span>`);
   if (isFlex(h)) meta.push(`${weekCount(h, weekStart(d))} de ${h.freq.times} esta semana`);
   else if (h.freq.kind !== 'daily') meta.push(freqText(h));
   const st = h.stackAfter && byId(h.stackAfter); if (st) meta.push(`Después de: ${esc(st.name)}`);
