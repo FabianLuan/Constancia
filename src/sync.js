@@ -143,10 +143,12 @@ if (NATIVE) {
   });
   App.addListener('backButton', () => { const k = window.Constancia && window.Constancia.back && window.Constancia.back(); if (!k) App.minimizeApp(); });
   App.addListener('resume', () => { try { window.Constancia.resume(); } catch (e) { } });
+  App.getInfo().then(i => { C.appInfo = i; rerender(); }).catch(() => { });
   LocalNotifications.createChannel({ id: 'habitos', name: 'Recordatorios de hábitos', description: 'Avisos diarios de tus hábitos', importance: 4, visibility: 1, vibration: true }).catch(() => { });
 }
 // Avisos programados en el propio celular: funcionan sin internet.
 const hashId = k => { let h = 0; for (let i = 0; i < k.length; i++) h = (h * 31 + k.charCodeAt(i)) | 0; return Math.abs(h) % 2000000000 + 1; };
+C.openUrl = url => NATIVE ? Browser.open({ url }) : window.open(url, '_blank');
 C.local = {
   ok: NATIVE,
   perm: async () => { try { return (await LocalNotifications.checkPermissions()).display; } catch (e) { return 'denied'; } },

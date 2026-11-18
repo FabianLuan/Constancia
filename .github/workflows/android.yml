@@ -40,8 +40,7 @@ jobs:
         env:
           KEYSTORE_PASSWORD: constancia-android
           VERSION_CODE: ${{ github.run_number }}
-          VERSION_NAME: 1.${{ github.run_number }}
-        run: chmod +x gradlew && ./gradlew assembleRelease --no-daemon --stacktrace
+        run: chmod +x gradlew && VERSION_NAME="$(cat NATIVE_REV | tr -d '[:space:]').${{ github.run_number }}" ./gradlew assembleRelease --no-daemon --stacktrace
       - run: cp android/app/build/outputs/apk/release/app-release.apk Constancia.apk && ls -la Constancia.apk
       - name: Publicar en Releases
         if: env.KEYSTORE_FILE != ''
@@ -50,4 +49,4 @@ jobs:
         run: |
           gh release view android >/dev/null 2>&1 || gh release create android --title "Constancia para Android" --notes "Descarga Constancia.apk en tu celular e instálala. Cada cambio en la app genera una versión nueva aquí."
           gh release upload android Constancia.apk --clobber
-          gh release edit android --notes "Versión 1.${{ github.run_number }} · Descarga Constancia.apk en tu celular e instálala (permite instalar apps de origen desconocido la primera vez)."
+          gh release edit android --notes "Versión $(cat android/NATIVE_REV | tr -d '[:space:]').${{ github.run_number }} · Descarga Constancia.apk en tu celular e instálala (permite instalar apps de origen desconocido la primera vez)."

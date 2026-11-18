@@ -335,6 +335,23 @@ function timerCtl(h, d, can, big) {
 function demoBanner() {
   return S.demo ? `<div class="banner demo"><span>Estos son <b>datos de ejemplo</b> para que veas cómo funciona.</span><button class="btn sm" data-a="clean">Empezar con mis hábitos</button></div>` : '';
 }
+/* ---------- versión y novedades ---------- */
+const SEENK = 'constancia.seen';
+function apkOutdated() { const C = window.ConstanciaSync; return !!(C && C.native && C.appInfo && (parseInt(String(C.appInfo.version).split('.')[0], 10) || 0) < APK_MIN); }
+function apkBanner() { return apkOutdated() ? `<div class="banner apk"><span><b>Hay una versión nueva de la app Android.</b> Descárgala e instálala encima: tus datos se mantienen.</span><button class="btn sm pri" data-a="getapk">Descargar</button></div>` : ''; }
+function sNews() {
+  let seen = ''; try { seen = localStorage.getItem(SEENK) || ''; } catch (e) { }
+  const idx = CHANGELOG.findIndex(c => c.v === seen), list = CHANGELOG.slice(0, idx < 0 ? 1 : Math.min(idx, 3));
+  return `<div class="top"><h2>Novedades · versión ${APP_VERSION}</h2><button class="btn sm ghost" data-a="close">Cerrar</button></div>
+  ${list.map(c => `<div class="news"><div class="eyebrow">Versión ${c.v} · ${shortDate(c.date)}</div><ul>${c.items.map(i => `<li>${esc(i)}</li>`).join('')}</ul></div>`).join('')}
+  ${apkOutdated() ? `<div class="banner apk"><span>Esta versión necesita <b>reinstalar la app Android</b>. Descárgala e instálala encima: tus datos se mantienen.</span><button class="btn sm pri" data-a="getapk">Descargar</button></div>` : ''}
+  <button class="btn pri" data-a="close">Entendido</button>`;
+}
+function checkNews() {
+  let seen = null; try { seen = localStorage.getItem(SEENK); } catch (e) { return; }
+  if (seen === APP_VERSION || U.sheet) return;
+  U.sheet = { k: 'news' }; renderSheet();
+}
 function vHoy() {
   const d = U.day, t = today(), w = weekStart(d), p = dayPct(d), g = game();
   const strip = Array.from({ length: 7 }, (_, i) => { const x = add(w, i), q = dayPct(x); return `<button class="dayb ${x === d ? 'sel' : ''} ${x === t ? 'tod' : ''}" data-a="day" data-d="${x}" aria-label="${longDate(x)}"><span class="l">${DL[i]}</span><span class="rg" style="--p:${x <= t && q.p != null ? pct(q.p) : 0}"><span class="n num">${parse(x).getDate()}</span></span></button>`; }).join('');
@@ -342,7 +359,7 @@ function vHoy() {
   const risk = d === t ? list.filter(h => metrics(h).risk && !isDone(h, d) && !isSkip(h, d)) : [];
   const groups = TIMES.map(([k, l]) => { const hs = list.filter(h => h.time === k); return hs.length ? `<section class="group"><div class="eyebrow">${l}</div>${hs.map(h => habitRow(h, d)).join('')}</section>` : ''; }).join('');
   const empty = !habits().length ? `<div class="card"><h2>Crea tu primer hábito</h2><p class="muted">Elige qué quieres hacer y qué días. Después solo tienes que marcarlo.</p><button class="btn pri" data-a="new">+ Nuevo hábito</button></div>` : (!list.length ? `<div class="card muted">No hay hábitos programados para este día.</div>` : '');
-  return `${demoBanner()}
+  return `${apkBanner()}${demoBanner()}
   <div class="head"><div><h1>${d === t ? 'Hoy' : DF[wd(d)][0].toUpperCase() + DF[wd(d)].slice(1)}</h1><div class="sub">${longDate(d)}</div></div>
     <div class="pager">${d !== t ? '<button class="btn sm" data-a="day" data-d="' + t + '">Volver a hoy</button>' : ''}<button class="btn pri" data-a="new">+ Hábito</button></div></div>
   <div class="strip"><button class="navbtn" data-a="dshift" data-n="-7" aria-label="Semana anterior">‹</button>${strip}<button class="navbtn" data-a="dshift" data-n="7" aria-label="Semana siguiente">›</button></div>
@@ -441,6 +458,7 @@ function vAjustes() {
   <div class="card"><div class="lab eyebrow">Nube</div>${cloudHTML()}</div>
   <div class="card"><div class="lab eyebrow">Respaldo</div><div class="acts"><button class="btn sm" data-a="exp" data-t="json">Exportar respaldo</button><button class="btn sm" data-a="exp" data-t="csv">Exportar CSV</button><button class="btn sm" data-a="imp">Importar respaldo</button></div>
     ${U.io ? `<div class="field"><label for="io">${U.io.mode === 'imp' ? 'Pega aquí el respaldo y pulsa Importar' : 'Copia este texto y guárdalo en un archivo'}</label><textarea class="inp" id="io" ${U.io.mode === 'imp' ? '' : 'readonly'} style="font:12px ui-monospace,monospace;min-height:120px">${esc(U.io.text)}</textarea><div class="acts">${U.io.mode === 'imp' ? '<button class="btn sm pri" data-a="doimp">Importar</button><label class="btn sm">Elegir archivo<input type="file" id="iofile" accept=".json,application/json" hidden></label>' : '<button class="btn sm pri" data-a="copy">Copiar</button><button class="btn sm" data-a="dl">Descargar archivo</button>'}<button class="btn sm ghost" data-a="ioclose">Cerrar</button></div>${U.io.err ? `<div class="err">${U.io.err}</div>` : ''}</div>` : ''}</div>
+  <div class="card"><div class="lab eyebrow">Versión</div><p class="small" style="margin:0">Constancia ${APP_VERSION}${window.ConstanciaSync && window.ConstanciaSync.appInfo ? ` · app Android ${esc(window.ConstanciaSync.appInfo.version)}` : ''}</p><div class="acts"><button class="btn sm" data-a="news">Ver novedades</button>${apkOutdated() ? '<button class="btn sm pri" data-a="getapk">Descargar app nueva</button>' : ''}</div></div>
   <div class="card"><div class="lab eyebrow">Datos</div><div class="acts"><button class="btn sm" data-a="loaddemo">Cargar datos de ejemplo</button><button class="btn sm danger" data-a="wipe">${U.wipe ? '¿Seguro? Borrar todo' : 'Borrar todo'}</button></div></div></div>`;
 }
 /* ---------- hojas ---------- */
@@ -664,7 +682,7 @@ function renderSheet() {
   const h = U.sheet.h && byId(U.sheet.h);
   if (U.sheet.k === 'detail' && !h) { U.sheet = null; el.innerHTML = ''; return; }
   const cur = el.querySelector('.sheet'), top = cur ? cur.scrollTop : 0, same = cur && cur.dataset.k === U.sheet.k;
-  keepScroll(el, () => { el.innerHTML = `<div class="scrim${same ? ' still' : ''}" data-a="scrim"><div class="sheet" role="dialog" aria-modal="true" data-k="${U.sheet.k}">${U.sheet.k === 'detail' ? sDetail(h) : sForm()}</div></div>`; });
+  keepScroll(el, () => { el.innerHTML = `<div class="scrim${same ? ' still' : ''}" data-a="scrim"><div class="sheet" role="dialog" aria-modal="true" data-k="${U.sheet.k}">${U.sheet.k === 'detail' ? sDetail(h) : U.sheet.k === 'news' ? sNews() : sForm()}</div></div>`; });
   if (same) el.querySelector('.sheet').scrollTop = top;
 }
 /* ---------- pomodoro y recordatorios ---------- */
@@ -769,7 +787,7 @@ const ACT = {
   dec: e => { const h = byId(e.h); if (canMark(h, e.d)) mutate(() => setEntry(h, e.d, { v: Math.max(0, val(h, e.d) - 1) })); },
   skip: e => { const h = byId(e.h); mutate(() => setEntry(h, e.d, isSkip(h, e.d) ? { s: 0 } : { s: 1, v: 0 })); },
   detail: e => { U.sheet = { k: 'detail', h: e.h }; U.del = null; renderSheet(); },
-  close: () => { U.sheet = null; U.form = null; U.ferr = ''; renderSheet(); },
+  close: () => { if (U.sheet && U.sheet.k === 'news') { try { localStorage.setItem(SEENK, APP_VERSION); } catch (e) { } } U.sheet = null; U.form = null; U.ferr = ''; renderSheet(); },
   scrim: (e, ev) => { if (ev.target.classList.contains('scrim')) ACT.close(); },
   new: () => { U.form = newForm(); U.ferr = ''; U.epick = false; U.eq = ''; U.sheet = { k: 'form' }; renderSheet(); const i = $('#f-name'); if (i) i.focus(); },
   edit: e => { U.form = newForm(byId(e.h)); U.ferr = ''; U.epick = false; U.eq = ''; U.sheet = { k: 'form' }; renderSheet(); },
@@ -811,6 +829,8 @@ const ACT = {
   lreq: async () => { const C = window.ConstanciaSync; U.lperm = await C.local.request(); if (U.lperm === 'granted') { const sin = habits().filter(h => !h.reminder); if (sin.length) mutate(() => sin.forEach(h => { h.reminder = remDefault(h.time); })); planLocal(); toast(sin.length ? `Avisos activados. Puse hora a ${sin.length} hábito${sin.length > 1 ? 's' : ''}.` : 'Avisos activados en este celular'); } else toast('Permiso rechazado: actívalo en Ajustes del teléfono › Apps › Constancia'); render(); },
   ltest: async () => { await window.ConstanciaSync.local.test(); toast('Te llegará un aviso en unos segundos'); },
   lexact: async () => { await window.ConstanciaSync.local.openExact(); U.lperm = null; },
+  getapk: () => { const C = window.ConstanciaSync; if (C && C.openUrl) C.openUrl(APK_URL); else window.open(APK_URL, '_blank'); },
+  news: () => { U.sheet = { k: 'news' }; renderSheet(); },
   pushtest: () => { notify('Constancia', 'Así se verán tus avisos de hábitos.', 'prueba'); },
   sumtoggle: () => mutate(() => { S.notif = S.notif || {}; S.notif.summary = S.notif.summary ? '' : '20:00'; }),
   fstart: () => { const f = F(); mutate(() => { f.end = Date.now() + fLeft() * 1000; f.left = null; }); noiseSync(); render(); tickFocus(); },
@@ -909,7 +929,7 @@ const showTip = ev => { const el = ev.target.closest && ev.target.closest('[data
 document.addEventListener('mouseover', showTip); document.addEventListener('focusin', showTip);
 document.addEventListener('mouseout', () => { tip.hidden = true; }); document.addEventListener('scroll', () => { tip.hidden = true; }, true);
 
-applyTheme(); render(); tick(); setInterval(tick, 1000); setTimeout(() => { planLocal(); if (isNative()) window.ConstanciaSync.local.perm().then(v => { if (/prompt/.test(v)) ACT.lreq(); }); }, 1500);
+applyTheme(); render(); tick(); setInterval(tick, 1000); setTimeout(() => { checkNews(); planLocal(); if (isNative()) window.ConstanciaSync.local.perm().then(v => { if (/prompt/.test(v)) ACT.lreq(); }); }, 1500);
 let lastDay = today(); setInterval(() => { if (today() !== lastDay) { lastDay = today(); cache.clear(); U.day = lastDay; render(); planLocal(); } }, 60000);
 try { if ((!window.Capacitor || /\.web\.app$/.test(location.hostname)) && 'serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost') && window.top === window && document.querySelector('link[rel="manifest"]')) navigator.serviceWorker.register('sw.js'); } catch (e) { }
 window.Constancia = {

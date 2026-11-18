@@ -475,3 +475,7 @@ body.zen-on #dock{display:none}
 #dock .pp button{cursor:pointer}
 @media (prefers-reduced-motion:reduce){#view.enter>*,#view.leave,#view.dslide .row,.scrim .sheet>*,.trend i,.tasks li,.epick,.cpick{animation:none!important}}
 .applogin{position:fixed;inset:0;z-index:100;background:var(--bg);display:grid;place-items:center;padding:24px}.applogin .card{max-width:420px;display:flex;flex-direction:column;gap:14px;text-align:center}.applogin .btn{min-height:48px}
+.banner.apk{background:color-mix(in oklab,var(--accent) 14%,var(--surface));border:1px solid color-mix(in oklab,var(--accent) 40%,var(--line))}
+.news{display:flex;flex-direction:column;gap:6px}
+.news ul{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px}
+.sheet[data-k="news"]{display:flex;flex-direction:column;gap:16px}
