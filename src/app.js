@@ -256,13 +256,14 @@ if (!S) { S = demo(); }
 
 /* ---------- vistas ---------- */
 const IC = {
+  enfoque: '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9.5 2.5h5M19 6l1.5-1.5"/>',
   hoy: '<circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4"/>',
   semana: '<rect x="3" y="5" width="18" height="14" rx="3"/><path d="M9 5v14M15 5v14"/>',
   mes: '<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/>',
   progreso: '<path d="M4 20V10M10 20V4M16 20v-7M21 20H3"/>',
   ajustes: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9L7 7M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/>'
 };
-const TABS = [['hoy', 'Hoy'], ['semana', 'Semana'], ['mes', 'Mes'], ['progreso', 'Progreso'], ['ajustes', 'Ajustes']];
+const TABS = [['hoy', 'Hoy'], ['enfoque', 'Enfoque'], ['semana', 'Semana'], ['mes', 'Mes'], ['progreso', 'Progreso'], ['ajustes', 'Ajustes']];
 function navHTML() {
   return `<div class="brand">Constanc<i>ia</i></div>` + TABS.map(([k, l]) => `<button class="tab" data-a="tab" data-t="${k}" ${U.tab === k ? 'aria-current="page"' : ''}><svg viewBox="0 0 24 24" aria-hidden="true">${IC[k]}</svg>${l}</button>`).join('');
 }
@@ -473,6 +474,112 @@ function sForm() {
   ${U.ferr ? `<div class="err">${U.ferr}</div>` : ''}
   <div class="acts"><button class="btn pri" data-a="fsave" style="flex:1">${f.id ? 'Guardar cambios' : 'Crear hábito'}</button></div>`;
 }
+/* ---------- enfoque (pomodoro, tareas y minutos de concentración) ---------- */
+const FMODES = [['focus', 'Enfoque'], ['short', 'Descanso'], ['long', 'Descanso largo']];
+function F() {
+  S.focus = S.focus || {};
+  const f = S.focus;
+  f.cfg = Object.assign({ focus: 25, short: 5, long: 15, every: 4, auto: false, noise: false }, f.cfg);
+  f.mode = f.mode || 'focus'; f.cycle = f.cycle || 0; f.tasks = f.tasks || []; f.log = f.log || {}; f.habit = f.habit || '';
+  return f;
+}
+const fDur = m => Math.max(1, +F().cfg[m] || 1) * 60;
+const fLeft = () => { const f = F(); return f.end ? Math.max(0, Math.ceil((f.end - Date.now()) / 1000)) : (f.left ?? fDur(f.mode)); };
+const fRunning = () => !!F().end;
+const fLog = d => F().log[d] || { min: 0, n: 0 };
+function fCredit(mins, full) {
+  const f = F(), d = today(), L = f.log[d] = Object.assign({ min: 0, n: 0 }, f.log[d]);
+  L.min += mins; if (full) L.n++;
+  const h = f.habit && byId(f.habit);
+  if (h && !h.archived && mins > 0 && canMark(h, d)) {
+    if (isTimer(h)) setEntry(h, d, { v: val(h, d) + mins * 60, s: 0 });
+    else if (h.type === 'count' && /min/i.test(h.unit)) setEntry(h, d, { v: val(h, d) + mins, s: 0 });
+    else if (h.type !== 'count' && full) setEntry(h, d, { v: 1, s: 0 });
+  }
+  const keep = Object.keys(f.log).sort().slice(-120); for (const k in f.log) if (!keep.includes(k)) delete f.log[k];
+}
+function fNext(f) {
+  if (f.mode === 'focus') { f.cycle++; f.mode = f.cycle % Math.max(1, f.cfg.every) === 0 ? 'long' : 'short'; }
+  else f.mode = 'focus';
+  f.left = null; f.end = f.cfg.auto ? Date.now() + fDur(f.mode) * 1000 : null;
+}
+function fFinish() {
+  const f = F(), was = f.mode;
+  mutate(() => { if (was === 'focus') { fCredit(f.cfg.focus, true); S.pomos = (S.pomos || 0) + 1; } fNext(f); });
+  beep();
+  const msg = was === 'focus' ? `Sesión de enfoque terminada. ${f.mode === 'long' ? 'Toca un descanso largo' : 'Tómate un respiro'}.` : 'Descanso terminado. ¿Otra sesión?';
+  notify('Constancia · Enfoque', msg, 'focus'); toast(was === 'focus' ? '🎯 ¡Sesión completa!' : '☕ Fin del descanso');
+}
+let noise = null;
+function noiseSync() {
+  const want = F().cfg.noise && fRunning() && F().mode === 'focus';
+  if (want && !noise) {
+    try {
+      const a = new (window.AudioContext || window.webkitAudioContext)(), len = a.sampleRate * 4, buf = a.createBuffer(1, len, a.sampleRate), ch = buf.getChannelData(0);
+      let last = 0; for (let i = 0; i < len; i++) { const w = Math.random() * 2 - 1; last = (last + 0.02 * w) / 1.02; ch[i] = last * 3.2; }
+      const src = a.createBufferSource(), g = a.createGain(); src.buffer = buf; src.loop = true; g.gain.value = 0; g.gain.linearRampToValueAtTime(0.35, a.currentTime + 1.2);
+      src.connect(g); g.connect(a.destination); src.start(); noise = { a, g };
+    } catch (e) { }
+  } else if (!want && noise) { const n = noise; noise = null; try { n.g.gain.linearRampToValueAtTime(0, n.a.currentTime + 0.4); setTimeout(() => n.a.close(), 500); } catch (e) { } }
+}
+const RING_C = 2 * Math.PI * 92;
+function tickFocus() {
+  const f = F();
+  if (f.end && Date.now() >= f.end) { fFinish(); render(); }
+  const left = fLeft(), tot = fDur(f.mode), p = 1 - left / tot, txt = `${pad(Math.floor(left / 60))}:${pad(left % 60)}`;
+  document.querySelectorAll('[data-ftime]').forEach(el => { if (el.textContent !== txt) el.textContent = txt; });
+  document.querySelectorAll('[data-fring]').forEach(el => el.style.strokeDashoffset = RING_C * (1 - p));
+  const bar = $('#fbar'); if (!bar) return;
+  const show = fRunning() && U.tab !== 'enfoque' && !U.zen;
+  const html = show ? `<div class="pp"><span>${f.mode === 'focus' ? '🎯' : '☕'} ${txt}</span><small>${f.mode === 'focus' ? 'Enfoque' : 'Descanso'}</small><button data-a="fpause">Pausar</button></div>` : '';
+  if (bar.innerHTML !== html) bar.innerHTML = html;
+}
+function focusRing(big) {
+  const f = F(), left = fLeft(), p = 1 - left / fDur(f.mode);
+  return `<div class="fring ${big ? 'big' : ''} m-${f.mode}"><svg viewBox="0 0 200 200" aria-hidden="true"><circle class="tr" cx="100" cy="100" r="92"/><circle class="pr" data-fring cx="100" cy="100" r="92" style="stroke-dasharray:${RING_C};stroke-dashoffset:${RING_C * (1 - p)}"/></svg>
+  <div class="in"><b class="num" data-ftime role="timer">${pad(Math.floor(left / 60))}:${pad(left % 60)}</b><span>${FMODES.find(m => m[0] === f.mode)[1]}</span><div class="dots" aria-label="Sesión ${f.cycle % f.cfg.every + 1} de ${f.cfg.every}">${Array.from({ length: f.cfg.every }, (_, i) => `<i class="${i < f.cycle % f.cfg.every ? 'on' : ''}"></i>`).join('')}</div></div></div>`;
+}
+function focusCtl() {
+  const run = fRunning();
+  return `<div class="fctl"><button class="btn ghost" data-a="freset" aria-label="Reiniciar">↺ Reiniciar</button><button class="btn pri fgo" data-a="${run ? 'fpause' : 'fstart'}">${run ? 'Pausar' : (F().left != null ? 'Continuar' : 'Comenzar')}</button><button class="btn ghost" data-a="fskip" aria-label="Saltar">Saltar ⏭</button></div>`;
+}
+function vEnfoque() {
+  const f = F(), d = today(), L = fLog(d), ws = weekStart(d);
+  const week = Array.from({ length: 7 }, (_, i) => { const x = add(ws, i); return { x, m: fLog(x).min }; }), wmin = week.reduce((a, b) => a + b.m, 0), mx = Math.max(25, ...week.map(w => w.m));
+  const hs = habits().filter(h => isTimer(h) || h.type === 'check' || (h.type === 'count' && /min/i.test(h.unit)));
+  const tasks = f.tasks.filter(t => !t.done || t.d === d);
+  const cur = tasks.find(t => !t.done);
+  const num = (k, l, opts) => `<div class="field"><label for="fc-${k}">${l}</label><select class="inp" id="fc-${k}" data-fc="${k}">${opts.map(n => `<option value="${n}" ${+f.cfg[k] === n ? 'selected' : ''}>${k === 'every' ? `Cada ${n} sesiones` : n + ' min'}</option>`).join('')}</select></div>`;
+  return `<div class="head"><div><h1>Enfoque</h1><div class="sub">Una cosa a la vez. Elige, comienza y deja el celular a un lado.</div></div><button class="btn sm" data-a="zen">⛶ Pantalla completa</button></div>
+  <div class="fgrid">
+  <div class="card fmain">
+    <div class="seg fmodes">${FMODES.map(([k, l]) => `<button type="button" data-a="fmode" data-v="${k}" aria-pressed="${f.mode === k}">${l}</button>`).join('')}</div>
+    ${focusRing()}
+    ${cur ? `<p class="fnow"><span class="muted small">Ahora:</span> ${esc(cur.t)}</p>` : ''}
+    ${focusCtl()}
+    <div class="field fhab"><label for="f-hab">Sumar el tiempo a un hábito</label><select class="inp" id="f-hab" data-fc="habit"><option value="">Ninguno</option>${hs.map(h => `<option value="${h.id}" ${f.habit === h.id ? 'selected' : ''}>${h.icon} ${esc(h.name)}</option>`).join('')}</select></div>
+  </div>
+  <div class="fside">
+  <div class="card"><div class="lab eyebrow">Tareas de la sesión</div>
+    <form class="fadd" data-a-submit="taddtask"><input class="inp" id="f-task" placeholder="¿En qué vas a trabajar?" maxlength="80" autocomplete="off"><button class="btn pri" type="submit" aria-label="Agregar tarea">＋</button></form>
+    ${tasks.length ? `<ul class="tasks">${tasks.map(t => `<li class="${t.done ? 'done' : ''}"><button class="tck" data-a="ttask" data-id="${t.id}" aria-pressed="${!!t.done}" aria-label="${t.done ? 'Desmarcar' : 'Marcar como hecha'}">${t.done ? CHECK : ''}</button><span>${esc(t.t)}</span><button class="tdel" data-a="tdel" data-id="${t.id}" aria-label="Eliminar tarea">✕</button></li>`).join('')}</ul>` : '<p class="muted small" style="margin:0">Escribe lo que vas a hacer en esta sesión. Las pendientes pasan al día siguiente.</p>'}
+  </div>
+  <div class="card"><div class="lab eyebrow">Tu concentración</div>
+    <div class="tiles ft"><div class="tile"><b class="num">${fmtGoal(L.min || 0).replace(' min', '')}<small> ${L.min >= 60 ? '' : 'min'}</small></b><span>hoy</span></div><div class="tile"><b class="num">${L.n}</b><span>${L.n === 1 ? 'sesión' : 'sesiones'} hoy</span></div><div class="tile"><b class="num">${wmin >= 60 ? fmtGoal(wmin) : wmin + ' min'}</b><span>esta semana</span></div></div>
+    <div class="fweek">${week.map(w => `<div class="${w.x === d ? 'tod' : ''}" title="${shortDate(w.x)}: ${w.m} min"><i style="height:${Math.round(w.m / mx * 100)}%"></i><span>${DL[wd(w.x)]}</span></div>`).join('')}</div>
+  </div>
+  <details class="card fcfg"><summary class="lab eyebrow">Ajustes del temporizador</summary>
+    <div class="two">${num('focus', 'Enfoque', [15, 20, 25, 30, 45, 50, 60, 90])}${num('short', 'Descanso', [3, 5, 10, 15])}</div>
+    <div class="two">${num('long', 'Descanso largo', [10, 15, 20, 30])}${num('every', 'Descanso largo cada', [2, 3, 4, 5, 6])}</div>
+    <label class="switch" for="fc-auto"><span><b>Encadenar automáticamente</b><small>Al terminar, empieza solo el descanso o la siguiente sesión.</small></span><input type="checkbox" id="fc-auto" data-a="fcfgt" data-k="auto" ${f.cfg.auto ? 'checked' : ''}><i aria-hidden="true"></i></label>
+    <label class="switch" for="fc-noise"><span><b>Ruido de fondo</b><small>Un sonido suave y constante mientras te concentras.</small></span><input type="checkbox" id="fc-noise" data-a="fcfgt" data-k="noise" ${f.cfg.noise ? 'checked' : ''}><i aria-hidden="true"></i></label>
+  </details>
+  </div></div>`;
+}
+function zenHTML() {
+  const f = F(), cur = f.tasks.find(t => !t.done);
+  return `<div class="zen m-${f.mode}" role="dialog" aria-modal="true" aria-label="Modo enfoque">${focusRing(true)}${cur ? `<p class="fnow">${esc(cur.t)}</p>` : ''}${focusCtl()}<button class="btn sm ghost zx" data-a="zenx">Salir de pantalla completa</button></div>`;
+}
 /* ---------- render ---------- */
 function applyTheme() { const r = document.documentElement; if (S.theme === 'auto') r.removeAttribute('data-theme'); else r.setAttribute('data-theme', S.theme); }
 function keepScroll(root, fn) {
@@ -483,9 +590,10 @@ function keepScroll(root, fn) {
 function render() {
   $('#nav').innerHTML = navHTML();
   const v = $('#view');
-  keepScroll(v, () => { v.innerHTML = ({ hoy: vHoy, semana: vSemana, mes: vMes, progreso: vProgreso, ajustes: vAjustes })[U.tab](); });
+  keepScroll(v, () => { v.innerHTML = ({ hoy: vHoy, enfoque: vEnfoque, semana: vSemana, mes: vMes, progreso: vProgreso, ajustes: vAjustes })[U.tab](); });
   if (U.enter) { U.enter = false; v.classList.remove('enter'); void v.offsetWidth; v.classList.add('enter'); }
   renderSheet();
+  const z = $('#zen'); if (z) z.innerHTML = U.zen ? zenHTML() : ''; document.body.classList.toggle('zen-on', !!U.zen);
   U.just = null; U.lastP = dayPct(U.day).p || 0;
 }
 function renderSheet() {
@@ -517,7 +625,7 @@ function tickRun() {
   if (bar.innerHTML !== html) bar.innerHTML = html;
 }
 function tick() {
-  tickRun();
+  tickRun(); tickFocus();
   const el = $('#pomo');
   if (U.pomo) {
     const left = Math.max(0, Math.round((U.pomo.end - Date.now()) / 1000)), h = byId(U.pomo.h);
@@ -609,6 +717,16 @@ const ACT = {
   pushoff: async () => { const C = window.ConstanciaSync; if (C && C.disablePush) await C.disablePush().catch(() => { }); render(); toast('Avisos desactivados en este dispositivo'); },
   pushtest: () => { notify('Constancia', 'Así se verán tus avisos de hábitos.', 'prueba'); },
   sumtoggle: () => mutate(() => { S.notif = S.notif || {}; S.notif.summary = S.notif.summary ? '' : '20:00'; }),
+  fstart: () => { const f = F(); mutate(() => { f.end = Date.now() + fLeft() * 1000; f.left = null; }); noiseSync(); render(); tickFocus(); },
+  fpause: () => { const f = F(); mutate(() => { f.left = fLeft(); f.end = null; }); noiseSync(); render(); tickFocus(); },
+  freset: () => { const f = F(); mutate(() => { if (f.mode === 'focus') { const el = Math.floor((fDur('focus') - fLeft()) / 60); if (el >= 1) fCredit(el, false); } f.end = null; f.left = null; }); noiseSync(); render(); },
+  fskip: () => { const f = F(); mutate(() => fNext(f)); noiseSync(); render(); },
+  fmode: e => { const f = F(); if (f.mode === e.v) return; mutate(() => { f.mode = e.v; f.end = null; f.left = null; }); noiseSync(); render(); },
+  fcfgt: e => { const f = F(); mutate(() => { f.cfg[e.k] = !f.cfg[e.k]; }); noiseSync(); render(); },
+  ttask: e => { const t = F().tasks.find(x => x.id === e.id); if (t) mutate(() => { t.done = !t.done; t.d = today(); }); render(); },
+  tdel: e => { const f = F(); mutate(() => { f.tasks = f.tasks.filter(x => x.id !== e.id); }); render(); },
+  zen: () => { U.zen = true; render(); try { document.documentElement.requestFullscreen && document.documentElement.requestFullscreen().catch(() => { }); } catch (e) { } },
+  zenx: () => { U.zen = false; render(); try { document.fullscreenElement && document.exitFullscreen(); } catch (e) { } },
   epick: () => { U.epick = !U.epick; U.eq = ''; renderSheet(); },
   ecat: e => { U.ecat = e.v; renderSheet(); },
   ftimer: () => { const f = U.form; f.type = f.type === 'timer' ? 'count' : 'timer'; renderSheet(); },
@@ -650,9 +768,16 @@ document.addEventListener('change', ev => {
   const el = ev.target;
   if (el.id === 'iofile' && el.files[0]) { const r = new FileReader(); r.onload = () => { U.io.text = String(r.result); U.io.err = ''; render(); }; r.readAsText(el.files[0]); }
   else if (el.dataset.ff === 'color' && U.form) renderSheet();
+  else if (el.dataset.fc) { const f = F(), k = el.dataset.fc; mutate(() => { if (k === 'habit') f.habit = el.value; else { f.cfg[k] = +el.value; if (!f.end) f.left = null; } }); render(); }
   else if (el.dataset.f === 'note') render();
 });
-document.addEventListener('keydown', ev => { if (ev.key === 'Escape' && U.sheet) ACT.close(); });
+document.addEventListener('keydown', ev => { if (ev.key === 'Escape' && U.sheet) ACT.close(); else if (ev.key === 'Escape' && U.zen) ACT.zenx(); });
+document.addEventListener('submit', ev => {
+  if (ev.target.dataset.aSubmit !== 'taddtask') return;
+  ev.preventDefault(); const i = $('#f-task'), t = i.value.trim(); if (!t) return;
+  mutate(() => { F().tasks.push({ id: uid(), t, done: false, d: today() }); }); render(); const n = $('#f-task'); if (n) n.focus();
+});
+document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && U.zen) { U.zen = false; render(); } });
 const tip = $('#tip');
 const showTip = ev => { const el = ev.target.closest && ev.target.closest('[data-tip]'); if (!el) { tip.hidden = true; return; } const r = el.getBoundingClientRect(); tip.textContent = el.dataset.tip; tip.hidden = false; const x = Math.min(window.innerWidth - tip.offsetWidth / 2 - 6, Math.max(tip.offsetWidth / 2 + 6, r.left + r.width / 2)); tip.style.left = x + 'px'; tip.style.top = Math.max(34, r.top) + 'px'; };
 document.addEventListener('mouseover', showTip); document.addEventListener('focusin', showTip);
