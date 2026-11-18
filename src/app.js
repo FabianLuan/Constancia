@@ -918,6 +918,28 @@ document.addEventListener('keydown', ev => { if (ev.key === 'Escape' && U.sheet)
   dock.addEventListener('dblclick', () => { try { localStorage.removeItem(KEYD); } catch (e) { } Object.assign(dock.style, { left: '', top: '', right: '', bottom: '' }); });
   window.addEventListener('resize', () => { if (dock.style.left) { const r = dock.getBoundingClientRect(); place(r.left, r.top); } });
 })();
+// Barra de estado: si la app Android no informó su altura y la página ocupa toda la pantalla, se usa una estimación.
+setTimeout(() => {
+  const r = document.documentElement;
+  if (!window.Capacitor || r.dataset.native) return;
+  const cs = getComputedStyle(r), has = v => parseFloat(cs.getPropertyValue(v)) > 0;
+  if (!has('--safe-area-inset-top') && innerHeight >= screen.height - 8) r.style.setProperty('--fallback-sat', '34px');
+}, 1500);
+// Deslizar hacia abajo para recargar (app instalada).
+(() => {
+  const standalone = !!window.Capacitor || (window.matchMedia && matchMedia('(display-mode: standalone)').matches);
+  if (!standalone || !('ontouchstart' in window)) return;
+  const el = document.createElement('div'); el.id = 'ptr'; el.innerHTML = '<svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v4h-4"/></svg>'; document.body.appendChild(el);
+  let y0 = null, dy = 0, busy = false;
+  const set = (d, back) => { el.classList.toggle('back', !!back); const k = Math.min(d, 110); el.style.opacity = Math.min(1, k / 60); el.style.transform = `translateY(${k}px) rotate(${k * 3}deg)`; };
+  addEventListener('touchstart', ev => { if (busy || U.sheet || U.zen || scrollY > 0 || ev.touches.length > 1 || ev.target.closest('#dock, .scrollx, input, textarea, select')) { y0 = null; return; } y0 = ev.touches[0].clientY; dy = 0; }, { passive: true });
+  addEventListener('touchmove', ev => { if (y0 == null) return; dy = (ev.touches[0].clientY - y0) * 0.5; if (dy > 0 && scrollY <= 0) set(dy); else { y0 = null; set(0, true); } }, { passive: true });
+  addEventListener('touchend', () => {
+    if (y0 == null) return; y0 = null;
+    if (dy > 70) { busy = true; set(80, true); el.classList.add('go'); setTimeout(() => location.reload(), 350); }
+    else set(0, true);
+  });
+})();
 document.addEventListener('submit', ev => {
   if (ev.target.dataset.aSubmit !== 'taddtask') return;
   ev.preventDefault(); const i = $('#f-task'), t = i.value.trim(); if (!t) return;

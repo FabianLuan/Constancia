@@ -487,3 +487,10 @@ main{padding-top:calc(18px + var(--sat))}
 .zen{padding-top:calc(24px + var(--sat))}
 .zen .zx{top:calc(14px + var(--sat))}
 .applogin{padding-top:calc(24px + var(--sat))}
+:root{--sat:max(env(safe-area-inset-top,0px),var(--safe-area-inset-top,0px),var(--native-sat,0px),var(--fallback-sat,0px))}
+/* deslizar para recargar */
+#ptr{position:fixed;left:50%;top:calc(var(--sat) - 44px);z-index:45;width:40px;height:40px;margin-left:-20px;border-radius:50%;background:var(--surface);box-shadow:var(--shadow);display:grid;place-items:center;pointer-events:none;opacity:0;transform:translateY(0)}
+#ptr svg{width:22px;height:22px;fill:none;stroke:var(--accent);stroke-width:2.4;stroke-linecap:round}
+#ptr.go svg{animation:spin .8s linear infinite}
+#ptr.back{transition:transform 260ms var(--spring),opacity 200ms ease}
+@keyframes spin{to{transform:rotate(360deg)}}
