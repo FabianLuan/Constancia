@@ -40,6 +40,7 @@ function save() {
   S.updatedAt = Date.now(); cache.clear();
   try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { }
   try { window.ConstanciaSync && window.ConstanciaSync.push(S); } catch (e) { }
+  planLocal();
 }
 const U = { tab: 'hoy', day: today(), week: weekStart(today()), month: today().slice(0, 7), sheet: null, form: null, pomo: null, io: null };
 const habits = () => S.habits.filter(h => !h.archived);
@@ -414,7 +415,13 @@ function cloudHTML() {
 function notifHTML() {
   const C = window.ConstanciaSync, np = typeof Notification !== 'undefined' ? Notification.permission : 'unsupported', sum = (S.notif || {}).summary || '';
   let dev;
-  if (!C) dev = '<p class="muted small" style="margin:0">En la app instalada en tu celular podrás activar avisos que llegan aunque la app esté cerrada.</p>';
+  if (C && C.native) {
+    const lp = U.lperm;
+    if (lp == null) { C.local.perm().then(v => { U.lperm = v; render(); }); C.local.exact().then(v => { if (U.lexact !== v) { U.lexact = v; render(); } }); }
+    dev = lp === 'granted'
+      ? `<p class="small" style="margin:0"><span class="pill ok">Activos en este celular</span> <span class="muted">${C.local.count ? `${C.local.count} avisos programados para los próximos días.` : 'Se programan solos con la hora de cada hábito.'} Llegan aunque no tengas internet.</span></p><div class="acts"><button class="btn sm" data-a="ltest">Probar aviso</button>${U.lexact === 'denied' ? '<button class="btn sm" data-a="lexact">Permitir hora exacta</button>' : ''}</div>`
+      : `<p class="muted small" style="margin:0">Permite las notificaciones para que Constancia te avise a la hora de cada hábito, incluso sin internet.</p><div><button class="btn sm pri" data-a="lreq">Permitir notificaciones</button></div>`;
+  } else if (!C) dev = '<p class="muted small" style="margin:0">En la app instalada en tu celular podrás activar avisos que llegan aunque la app esté cerrada.</p>';
   else if (np === 'unsupported' || !C.enablePush) dev = '<p class="muted small" style="margin:0">Este navegador no admite notificaciones. En Android usa Chrome con la app instalada.</p>';
   else if (!C.user) dev = '<p class="muted small" style="margin:0">Inicia sesión en <b>Nube</b> para recibir los avisos en este dispositivo aunque la app esté cerrada.</p>';
   else if (pushOn()) dev = '<p class="small" style="margin:0"><span class="pill ok">Activadas en este dispositivo</span></p><div class="acts"><button class="btn sm" data-a="pushtest">Probar aviso</button><button class="btn sm ghost" data-a="pushoff">Desactivar aquí</button></div>';
@@ -423,7 +430,7 @@ function notifHTML() {
   return `${dev}
   <label class="switch" for="n-sum"><span><b>Resumen diario de pendientes</b><small>${sum ? `A las ${sum} te digo cuántos hábitos te quedan y cuáles son.` : 'Sin resumen diario.'}</small></span><input type="checkbox" id="n-sum" data-a="sumtoggle" ${sum ? 'checked' : ''}><i aria-hidden="true"></i></label>
   ${sum ? `<div class="field"><label for="n-sumt">Hora del resumen</label><input class="inp" id="n-sumt" type="time" data-f="summary" value="${esc(sum)}" style="max-width:160px"></div>` : ''}
-  <p class="muted small" style="margin:0">La hora de aviso de cada hábito se cambia al editarlo. Los avisos llegan con unos minutos de diferencia.</p>`;
+  <p class="muted small" style="margin:0">La hora de aviso de cada hábito se cambia al editarlo. ${C && C.native ? 'Los avisos se programan en el celular y llegan a su hora.' : 'Los avisos llegan con unos minutos de diferencia.'}</p>`;
 }
 function vAjustes() {
   const np = typeof Notification !== 'undefined' ? Notification.permission : 'unsupported';
@@ -704,6 +711,33 @@ function notify(title, body, tag) {
     else new Notification(title, o);
   } catch (e) { }
 }
+/* ---------- avisos locales (app Android) ---------- */
+const isNative = () => !!(window.ConstanciaSync && window.ConstanciaSync.native);
+function buildPlan() {
+  const now = Date.now(), t = today(), out = [], summ = (S.notif || {}).summary || '';
+  const atOf = (d, hm) => { const [y, m, dd] = d.split('-').map(Number); return new Date(y, m - 1, dd, +hm.slice(0, 2), +hm.slice(3, 5)).getTime(); };
+  const dueOn = (h, d) => isDue(h, d) || (isFlex(h) && active(h, d) && weekCount(h, weekStart(d)) < h.freq.times);
+  for (let i = 0; i < 7; i++) {
+    const d = add(t, i), pend = [];
+    for (const h of habits()) {
+      if (!dueOn(h, d) || (i === 0 && (isDone(h, d) || isSkip(h, d)))) continue;
+      pend.push(h);
+      if (!h.reminder || !/^\d\d:\d\d$/.test(h.reminder)) continue;
+      const at = atOf(d, h.reminder); if (at <= now + 20000) continue;
+      let body = 'Es tu momento de hoy. ¡Tú puedes!';
+      if (i === 0 && (isTimer(h) || h.type === 'count')) { const pv = prevVal(h, d), cur = val(h, d); body = `Llevas ${amt(h, cur)} de ${amt(h, goalOf(h))}.` + (pv ? ` ${whenLbl(pv.d, d)} llegaste a ${amt(h, pv.v)}. ¡Hoy supéralo!` : ' ¡Tú puedes!'); }
+      out.push({ key: `${h.id}|${d}`, at, title: `${h.icon} ${h.name}`, body });
+    }
+    if (summ && pend.length) {
+      const at = atOf(d, summ); if (at <= now + 20000) continue;
+      const names = pend.map(h => `${h.icon} ${h.name}`), list = names.slice(0, 6).join(' · ') + (names.length > 6 ? ` y ${names.length - 6} más` : '');
+      out.push({ key: `_sum|${d}`, at, title: i === 0 ? (pend.length === 1 ? 'Te queda 1 hábito hoy' : `Te quedan ${pend.length} hábitos hoy`) : '¿Cómo vas con tus hábitos de hoy?', body: i === 0 ? list : `Hoy tocaban: ${list}` });
+    }
+  }
+  return out.sort((a, b) => a.at - b.at);
+}
+let planT = 0;
+function planLocal() { if (!isNative()) return; clearTimeout(planT); planT = setTimeout(() => { try { window.ConstanciaSync.local.schedule(buildPlan()).then(() => { if (U.tab === 'ajustes') render(); }); } catch (e) { } }, 1200); }
 function beep() { try { const a = new (window.AudioContext || window.webkitAudioContext)(), o = a.createOscillator(), g = a.createGain(); o.connect(g); g.connect(a.destination); o.frequency.value = 660; g.gain.setValueAtTime(.2, a.currentTime); g.gain.exponentialRampToValueAtTime(.001, a.currentTime + .8); o.start(); o.stop(a.currentTime + .8); } catch (e) { } }
 /* ---------- respaldo ---------- */
 function csv() {
@@ -774,6 +808,9 @@ const ACT = {
     } else { render(); toast(r === 'denied' ? 'El permiso está bloqueado: actívalo en los ajustes del navegador' : r === 'unsupported' ? 'Este navegador no admite notificaciones' : 'No se pudo activar: ' + r.replace('error:', '')); }
   },
   pushoff: async () => { const C = window.ConstanciaSync; if (C && C.disablePush) await C.disablePush().catch(() => { }); render(); toast('Avisos desactivados en este dispositivo'); },
+  lreq: async () => { const C = window.ConstanciaSync; U.lperm = await C.local.request(); if (U.lperm === 'granted') { const sin = habits().filter(h => !h.reminder); if (sin.length) mutate(() => sin.forEach(h => { h.reminder = remDefault(h.time); })); planLocal(); toast(sin.length ? `Avisos activados. Puse hora a ${sin.length} hábito${sin.length > 1 ? 's' : ''}.` : 'Avisos activados en este celular'); } else toast('Permiso rechazado: actívalo en Ajustes del teléfono › Apps › Constancia'); render(); },
+  ltest: async () => { await window.ConstanciaSync.local.test(); toast('Te llegará un aviso en unos segundos'); },
+  lexact: async () => { await window.ConstanciaSync.local.openExact(); U.lperm = null; },
   pushtest: () => { notify('Constancia', 'Así se verán tus avisos de hábitos.', 'prueba'); },
   sumtoggle: () => mutate(() => { S.notif = S.notif || {}; S.notif.summary = S.notif.summary ? '' : '20:00'; }),
   fstart: () => { const f = F(); mutate(() => { f.end = Date.now() + fLeft() * 1000; f.left = null; }); noiseSync(); render(); tickFocus(); },
@@ -872,8 +909,11 @@ const showTip = ev => { const el = ev.target.closest && ev.target.closest('[data
 document.addEventListener('mouseover', showTip); document.addEventListener('focusin', showTip);
 document.addEventListener('mouseout', () => { tip.hidden = true; }); document.addEventListener('scroll', () => { tip.hidden = true; }, true);
 
-applyTheme(); render(); tick(); setInterval(tick, 1000);
-let lastDay = today(); setInterval(() => { if (today() !== lastDay) { lastDay = today(); cache.clear(); U.day = lastDay; render(); } }, 60000);
-try { if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost') && window.top === window && document.querySelector('link[rel="manifest"]')) navigator.serviceWorker.register('sw.js'); } catch (e) { }
-window.Constancia = { render, get state() { return S; }, set(o) { S = Object.assign(blank(), o); cache.clear(); try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { } applyTheme(); render(); } };
+applyTheme(); render(); tick(); setInterval(tick, 1000); setTimeout(() => { planLocal(); if (isNative()) window.ConstanciaSync.local.perm().then(v => { if (/prompt/.test(v)) ACT.lreq(); }); }, 1500);
+let lastDay = today(); setInterval(() => { if (today() !== lastDay) { lastDay = today(); cache.clear(); U.day = lastDay; render(); planLocal(); } }, 60000);
+try { if (!window.Capacitor && 'serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost') && window.top === window && document.querySelector('link[rel="manifest"]')) navigator.serviceWorker.register('sw.js'); } catch (e) { }
+window.Constancia = {
+  back() { if (U.sheet) { ACT.close(); return true; } if (U.zen) { ACT.zenx(); return true; } if (U.tab !== 'hoy') { ACT.tab({ t: 'hoy' }); return true; } return false; },
+  resume() { if (today() !== lastDay) { if (U.day === lastDay) U.day = today(); lastDay = today(); } cache.clear(); U.lperm = null; render(); planLocal(); },
+  render, get state() { return S; }, set(o) { S = Object.assign(blank(), o); cache.clear(); try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { } applyTheme(); render(); } };
 })();

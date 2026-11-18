@@ -474,3 +474,4 @@ body.zen-on #dock{display:none}
 #dock .grip{width:8px;height:18px;margin-left:-6px;flex:none;opacity:.55;background:radial-gradient(circle,currentColor 1.2px,transparent 1.6px) 0 0/4px 6px}
 #dock .pp button{cursor:pointer}
 @media (prefers-reduced-motion:reduce){#view.enter>*,#view.leave,#view.dslide .row,.scrim .sheet>*,.trend i,.tasks li,.epick,.cpick{animation:none!important}}
+.applogin{position:fixed;inset:0;z-index:100;background:var(--bg);display:grid;place-items:center;padding:24px}.applogin .card{max-width:420px;display:flex;flex-direction:column;gap:14px;text-align:center}.applogin .btn{min-height:48px}

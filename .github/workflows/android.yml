@@ -1,0 +1,53 @@
+name: App Android
+on:
+  push:
+    branches: [main]
+    paths: ['src/**', 'android/**', 'capacitor.config.json', 'package.json', 'package-lock.json', 'build.sh', '.github/workflows/android.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency: android
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build
+      - run: npx cap sync android
+      - name: Llave de firma
+        env:
+          KS: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$KS" ]; then
+            printf '%s' "$KS" | base64 -d > "$RUNNER_TEMP/ks.p12"
+            echo "KEYSTORE_FILE=$RUNNER_TEMP/ks.p12" >> "$GITHUB_ENV"
+          else
+            echo "::warning::Falta el secreto ANDROID_KEYSTORE_B64: el APK se compila pero no se publica."
+          fi
+      - name: Compilar APK
+        working-directory: android
+        env:
+          KEYSTORE_PASSWORD: constancia-android
+          VERSION_CODE: ${{ github.run_number }}
+          VERSION_NAME: 1.${{ github.run_number }}
+        run: chmod +x gradlew && ./gradlew assembleRelease --no-daemon --stacktrace
+      - run: cp android/app/build/outputs/apk/release/app-release.apk Constancia.apk && ls -la Constancia.apk
+      - name: Publicar en Releases
+        if: env.KEYSTORE_FILE != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view android >/dev/null 2>&1 || gh release create android --title "Constancia para Android" --notes "Descarga Constancia.apk en tu celular e instálala. Cada cambio en la app genera una versión nueva aquí."
+          gh release upload android Constancia.apk --clobber
+          gh release edit android --notes "Versión 1.${{ github.run_number }} · Descarga Constancia.apk en tu celular e instálala (permite instalar apps de origen desconocido la primera vez)."

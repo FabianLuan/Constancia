@@ -1,7 +1,11 @@
 // Sincronización con Firebase: inicio de sesión con Google y un documento por usuario en Firestore.
 // Firestore guarda los cambios sin conexión y los sube cuando vuelve internet.
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signInWithRedirect, getRedirectResult, signOut } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signInWithRedirect, getRedirectResult, signInWithCredential, signOut } from 'firebase/auth';
+import { Capacitor } from '@capacitor/core';
+import { App } from '@capacitor/app';
+import { Browser } from '@capacitor/browser';
+import { LocalNotifications } from '@capacitor/local-notifications';
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, onSnapshot, setDoc, updateDoc, deleteField, serverTimestamp } from 'firebase/firestore';
 import { getMessaging, getToken, deleteToken, isSupported } from 'firebase/messaging';
 
@@ -19,7 +23,9 @@ const auth = getAuth(app);
 auth.languageCode = 'es';
 const db = initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) });
 
-const C = { user: null, status: 'idle', error: '' };
+const NATIVE = Capacitor.isNativePlatform();
+const WEB_URL = 'https://constancia-habit-tracker.web.app/';
+const C = { user: null, status: 'idle', error: '', native: NATIVE };
 let ref = null, unsub = null, timer = null, lastPushed = 0, applying = false;
 const rerender = () => { try { window.Constancia.render(); } catch (e) { } };
 const strip = s => { const o = JSON.parse(JSON.stringify(s)); delete o.theme; return o; };
@@ -78,6 +84,8 @@ getRedirectResult(auth).catch(err => { C.error = 'No se pudo iniciar sesión: ' 
 C.push = push;
 C.signIn = async () => {
   C.error = '';
+  // En la app Android, Google no permite iniciar sesión dentro de la app: se abre Chrome y vuelve con el token.
+  if (NATIVE) { await Browser.open({ url: WEB_URL + '?applogin=1' }); return; }
   const provider = new GoogleAuthProvider();
   try { await signInWithPopup(auth, provider); }
   catch (err) {
@@ -123,6 +131,58 @@ C.disablePush = async () => {
 };
 window.addEventListener('online', () => { if (ref) { C.status = 'pending'; rerender(); push(window.Constancia.state); } });
 window.addEventListener('offline', () => { if (ref) { C.status = 'offline'; rerender(); } });
+
+// ---------- app Android ----------
+if (NATIVE) {
+  App.addListener('appUrlOpen', async ({ url }) => {
+    if (!url || !url.startsWith('constancia://auth')) return;
+    const q = new URLSearchParams(url.split('?')[1] || '');
+    try { await Browser.close(); } catch (e) { }
+    try { await signInWithCredential(auth, GoogleAuthProvider.credential(q.get('id') || null, q.get('at') || null)); }
+    catch (err) { C.error = 'No se pudo iniciar sesión: ' + (err.code || err.message); rerender(); }
+  });
+  App.addListener('backButton', () => { const k = window.Constancia && window.Constancia.back && window.Constancia.back(); if (!k) App.minimizeApp(); });
+  App.addListener('resume', () => { try { window.Constancia.resume(); } catch (e) { } });
+  LocalNotifications.createChannel({ id: 'habitos', name: 'Recordatorios de hábitos', description: 'Avisos diarios de tus hábitos', importance: 4, visibility: 1, vibration: true }).catch(() => { });
+}
+// Avisos programados en el propio celular: funcionan sin internet.
+const hashId = k => { let h = 0; for (let i = 0; i < k.length; i++) h = (h * 31 + k.charCodeAt(i)) | 0; return Math.abs(h) % 2000000000 + 1; };
+C.local = {
+  ok: NATIVE,
+  perm: async () => { try { return (await LocalNotifications.checkPermissions()).display; } catch (e) { return 'denied'; } },
+  request: async () => { try { const r = await LocalNotifications.requestPermissions(); return r.display; } catch (e) { return 'denied'; } },
+  exact: async () => { try { return (await LocalNotifications.checkExactNotificationSetting()).exact_alarm; } catch (e) { return 'granted'; } },
+  openExact: async () => { try { await LocalNotifications.changeExactNotificationSetting(); } catch (e) { } },
+  count: 0,
+  schedule: async plan => {
+    if (!NATIVE) return;
+    if ((await C.local.perm()) !== 'granted') return;
+    const pend = await LocalNotifications.getPending().catch(() => ({ notifications: [] }));
+    if (pend.notifications.length) await LocalNotifications.cancel({ notifications: pend.notifications.map(n => ({ id: n.id })) }).catch(() => { });
+    const list = plan.slice(0, 60).map(n => ({ id: hashId(n.key), title: n.title, body: n.body, largeBody: n.body, channelId: 'habitos', smallIcon: 'ic_stat_constancia', iconColor: '#17734A', schedule: { at: new Date(n.at), allowWhileIdle: true } }));
+    if (list.length) await LocalNotifications.schedule({ notifications: list }).catch(err => { C.error = 'No se pudieron programar los avisos: ' + (err.message || err); });
+    C.local.count = list.length;
+  },
+  test: async () => { await LocalNotifications.schedule({ notifications: [{ id: 7, title: 'Constancia', body: 'Así te llegarán tus recordatorios, aunque no tengas internet.', channelId: 'habitos', smallIcon: 'ic_stat_constancia', iconColor: '#17734A', schedule: { at: new Date(Date.now() + 4000), allowWhileIdle: true } }] }); },
+};
+// ---------- página puente para iniciar sesión desde la app Android ----------
+if (!NATIVE && new URLSearchParams(location.search).has('applogin')) {
+  const box = document.createElement('div');
+  box.className = 'applogin';
+  const draw = (html) => { box.innerHTML = `<div class="card"><h2>Constancia para Android</h2>${html}</div>`; };
+  const ask = () => { draw('<p class="muted">Inicia sesión con tu cuenta de Google para conectar la app.</p><button class="btn pri" id="al-go">Continuar con Google</button>'); box.querySelector('#al-go').onclick = go; };
+  const go = async () => {
+    try {
+      const res = await signInWithPopup(auth, new GoogleAuthProvider());
+      const cr = GoogleAuthProvider.credentialFromResult(res);
+      const q = new URLSearchParams({ id: cr.idToken || '', at: cr.accessToken || '' }).toString();
+      const intent = `intent://auth?${q}#Intent;scheme=constancia;package=cl.constancia.app;end`;
+      draw(`<p>Listo, ${res.user.displayName || ''}. Toca el botón para volver a la app.</p><a class="btn pri" href="${intent}">Volver a Constancia</a>`);
+      setTimeout(() => { location.href = intent; }, 300);
+    } catch (err) { draw(`<p class="err">No se pudo iniciar sesión: ${err.code || err.message}</p><button class="btn pri" id="al-go">Reintentar</button>`); box.querySelector('#al-go').onclick = go; }
+  };
+  ask(); document.body.appendChild(box);
+}
 
 window.ConstanciaSync = C;
 rerender();
