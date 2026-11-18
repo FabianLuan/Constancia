@@ -406,3 +406,26 @@ body.zen-on #dock{display:none}
 .fctl{flex-wrap:nowrap}
 .fctl .btn.ghost{padding-inline:10px;white-space:nowrap}
 @media (max-width:520px){.fctl{gap:4px}.fctl .fgo{min-width:120px}.tiles.ft b{font-size:1.35rem}.fweek{height:64px}}
+.fcol{display:flex;flex-direction:column;gap:16px;min-width:0}
+.htm{display:flex;flex-direction:column;gap:10px}
+.hti{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:14px;border:1px solid color-mix(in oklab,var(--h) 30%,var(--line));background:color-mix(in oklab,var(--h) 8%,var(--surface))}
+.hti.on{background:color-mix(in oklab,var(--h) 18%,var(--surface));border-color:color-mix(in oklab,var(--h) 55%,var(--line))}
+.hti .chip{background:color-mix(in oklab,var(--h) 26%,var(--surface))}
+.htb{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
+.htn{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.htn b{overflow-wrap:anywhere}
+.htbar{height:6px;border-radius:99px;background:color-mix(in oklab,var(--h) 16%,var(--line));overflow:hidden}
+.htbar i{display:block;height:100%;background:var(--h);transform-origin:left;transition:transform 1s linear}
+.htadd{display:flex;gap:4px;flex-wrap:wrap}
+.htadd .btn{min-height:30px;padding:4px 8px;font-size:.78rem}
+.zrun{width:min(92vw,460px)}
+.zrun .htm{background:transparent;border:0;padding:0}
+.rhero{border-color:color-mix(in oklab,var(--h) 45%,var(--line));background:linear-gradient(160deg,color-mix(in oklab,var(--h) 18%,var(--surface)),var(--surface) 70%)}
+.rhero .htn{align-self:stretch;justify-content:center}
+.rhero .chip{width:34px;height:34px;font-size:1.05rem}
+.fring.hr{--fc:var(--h);width:min(64vw,230px)}
+.fring.hr .in .small{color:var(--ink2);font-weight:500}
+.zrun .rhero{padding:12px}
+.zrun .fring.hr{width:min(40vw,24vh,180px)}
+.zrun .fring.hr .in b{font-size:1.8rem}
+.fring.hr .in .small{max-width:80%;text-align:center}

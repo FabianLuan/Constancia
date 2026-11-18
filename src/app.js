@@ -543,6 +543,23 @@ function focusCtl() {
   const run = fRunning();
   return `<div class="fctl"><button class="btn ghost" data-a="freset" aria-label="Reiniciar">↺ Reiniciar</button><button class="btn pri fgo" data-a="${run ? 'fpause' : 'fstart'}">${run ? 'Pausar' : (F().left != null ? 'Continuar' : 'Comenzar')}</button><button class="btn ghost" data-a="fskip" aria-label="Saltar">Saltar ⏭</button></div>`;
 }
+function runHero() {
+  if (!S.run) return '';
+  const h = byId(S.run.h); if (!h) return '';
+  const d = S.run.d, sec = liveSec(h, d), g = goalOf(h), p = Math.min(1, sec / g);
+  return `<div class="card fmain rhero" style="--h:${h.color}"><div class="htn"><span class="chip">${h.icon}</span><b>${esc(h.name)}</b><span class="pill ok">En curso</span></div>
+  <div class="fring hr"><svg viewBox="0 0 200 200" aria-hidden="true"><circle class="tr" cx="100" cy="100" r="92"/><circle class="pr" data-hring="${h.id}|${d}" cx="100" cy="100" r="92" style="stroke-dasharray:${RING_C};stroke-dashoffset:${RING_C * (1 - p)}"/></svg>
+  <div class="in"><b class="num" data-live="${h.id}|${d}" role="timer">${fmtT(sec)}</b><span>de ${fmtGoal(h.target)}</span><span class="small" data-hleft="${h.id}|${d}">${sec >= g ? 'Meta cumplida ✓' : 'Faltan ' + fmtGoal(Math.ceil((g - sec) / 60))}</span></div></div>
+  <div class="fctl"><button class="btn ghost" data-a="tadd" data-h="${h.id}" data-d="${d}" data-n="-300">−5 min</button><button class="btn pri fgo" data-a="tpause">Pausar</button><button class="btn ghost" data-a="tadd" data-h="${h.id}" data-d="${d}" data-n="900">+15 min</button></div></div>`;
+}
+function habitTimers() {
+  const d = today(), hs = habits().filter(h => isTimer(h) && canMark(h, d) && !running(h, d));
+  if (!hs.length) return '';
+  return `<div class="card htm"><div class="lab eyebrow">Temporizadores de tus hábitos</div>${hs.map(h => {
+    const on = running(h, d), sec = liveSec(h, d), g = goalOf(h);
+    return `<div class="hti ${on ? 'on' : ''}" style="--h:${h.color}"><div class="chip">${h.icon}</div><div class="htb"><div class="htn"><b>${esc(h.name)}</b>${on ? '<span class="pill ok">En curso</span>' : sec >= g ? '<span class="pill ok">Meta cumplida</span>' : ''}</div><div class="htbar"><i data-hbar="${h.id}|${d}" style="transform:scaleX(${Math.min(1, sec / g)})"></i></div>${on ? `<div class="htadd"><button class="btn sm ghost" data-a="tadd" data-h="${h.id}" data-d="${d}" data-n="-300">−5 min</button><button class="btn sm ghost" data-a="tadd" data-h="${h.id}" data-d="${d}" data-n="300">+5 min</button><button class="btn sm ghost" data-a="tadd" data-h="${h.id}" data-d="${d}" data-n="900">+15 min</button></div>` : ''}</div>${timerCtl(h, d, true)}</div>`;
+  }).join('')}</div>`;
+}
 function vEnfoque() {
   const f = F(), d = today(), L = fLog(d), ws = weekStart(d);
   const week = Array.from({ length: 7 }, (_, i) => { const x = add(ws, i); return { x, m: fLog(x).min }; }), wmin = week.reduce((a, b) => a + b.m, 0), mx = Math.max(25, ...week.map(w => w.m));
@@ -551,15 +568,17 @@ function vEnfoque() {
   const cur = tasks.find(t => !t.done);
   const num = (k, l, opts) => `<div class="field"><label for="fc-${k}">${l}</label><select class="inp" id="fc-${k}" data-fc="${k}">${opts.map(n => `<option value="${n}" ${+f.cfg[k] === n ? 'selected' : ''}>${k === 'every' ? `Cada ${n} sesiones` : n + ' min'}</option>`).join('')}</select></div>`;
   return `<div class="head"><div><h1>Enfoque</h1><div class="sub">Una cosa a la vez. Elige, comienza y deja el celular a un lado.</div></div><button class="btn sm" data-a="zen">⛶ Pantalla completa</button></div>
-  <div class="fgrid">
+  <div class="fgrid"><div class="fcol">
+  ${runHero()}
   <div class="card fmain">
     <div class="seg fmodes">${FMODES.map(([k, l]) => `<button type="button" data-a="fmode" data-v="${k}" aria-pressed="${f.mode === k}">${l}</button>`).join('')}</div>
     ${focusRing()}
     ${cur ? `<p class="fnow"><span class="muted small">Ahora:</span> ${esc(cur.t)}</p>` : ''}
     ${focusCtl()}
     <div class="field fhab"><label for="f-hab">Sumar el tiempo a un hábito</label><select class="inp" id="f-hab" data-fc="habit"><option value="">Ninguno</option>${hs.map(h => `<option value="${h.id}" ${f.habit === h.id ? 'selected' : ''}>${h.icon} ${esc(h.name)}</option>`).join('')}</select></div>
-  </div>
+  </div></div>
   <div class="fside">
+  ${habitTimers()}
   <div class="card"><div class="lab eyebrow">Tareas de la sesión</div>
     <form class="fadd" data-a-submit="taddtask"><input class="inp" id="f-task" placeholder="¿En qué vas a trabajar?" maxlength="80" autocomplete="off"><button class="btn pri" type="submit" aria-label="Agregar tarea">＋</button></form>
     ${tasks.length ? `<ul class="tasks">${tasks.map(t => `<li class="${t.done ? 'done' : ''}"><button class="tck" data-a="ttask" data-id="${t.id}" aria-pressed="${!!t.done}" aria-label="${t.done ? 'Desmarcar' : 'Marcar como hecha'}">${t.done ? CHECK : ''}</button><span>${esc(t.t)}</span><button class="tdel" data-a="tdel" data-id="${t.id}" aria-label="Eliminar tarea">✕</button></li>`).join('')}</ul>` : '<p class="muted small" style="margin:0">Escribe lo que vas a hacer en esta sesión. Las pendientes pasan al día siguiente.</p>'}
@@ -578,7 +597,7 @@ function vEnfoque() {
 }
 function zenHTML() {
   const f = F(), cur = f.tasks.find(t => !t.done);
-  return `<div class="zen m-${f.mode}" role="dialog" aria-modal="true" aria-label="Modo enfoque">${focusRing(true)}${cur ? `<p class="fnow">${esc(cur.t)}</p>` : ''}${focusCtl()}<button class="btn sm ghost zx" data-a="zenx">Salir de pantalla completa</button></div>`;
+  return `<div class="zen m-${f.mode}" role="dialog" aria-modal="true" aria-label="Modo enfoque">${focusRing(true)}${cur ? `<p class="fnow">${esc(cur.t)}</p>` : ''}${focusCtl()}${S.run && byId(S.run.h) ? `<div class="zrun">${runHero()}</div>` : ''}<button class="btn sm ghost zx" data-a="zenx">Salir de pantalla completa</button></div>`;
 }
 /* ---------- render ---------- */
 function applyTheme() { const r = document.documentElement; if (S.theme === 'auto') r.removeAttribute('data-theme'); else r.setAttribute('data-theme', S.theme); }
@@ -621,8 +640,12 @@ function tickRun() {
   if (val(h, d) < g && sec >= g) { mutate(() => { commitRun(); S.run = { h: h.id, d, at: Date.now() }; }); toast(`⏱ Meta cumplida: ${h.name}`); beep(); return; }
   document.querySelectorAll(`[data-live="${h.id}|${d}"]`).forEach(el => { el.textContent = fmtT(sec); });
   document.querySelectorAll(`[data-ring="${h.id}|${d}"]`).forEach(el => el.style.setProperty('--p', Math.min(1, sec / g)));
-  const html = `<div class="pp"><span>⏱ ${fmtT(sec)}</span><small>${esc(h.name)}</small><button data-a="tpause">Pausar</button></div>`;
-  if (bar.innerHTML !== html) bar.innerHTML = html;
+  document.querySelectorAll(`[data-hbar="${h.id}|${d}"]`).forEach(el => el.style.transform = `scaleX(${Math.min(1, sec / g)})`);
+  document.querySelectorAll(`[data-hring="${h.id}|${d}"]`).forEach(el => el.style.strokeDashoffset = RING_C * (1 - Math.min(1, sec / g)));
+  document.querySelectorAll(`[data-hleft="${h.id}|${d}"]`).forEach(el => { const t = sec >= g ? 'Meta cumplida ✓' : 'Faltan ' + fmtGoal(Math.ceil((g - sec) / 60)); if (el.textContent !== t) el.textContent = t; });
+  const html = `<div class="pp"><span>⏱ ${fmtT(sec)}</span><small>${esc(h.name)}</small><button data-a="tab" data-t="enfoque">Ver</button><button data-a="tpause">Pausar</button></div>`;
+  const out = U.tab === 'enfoque' && !U.zen ? '' : html;
+  if (bar.innerHTML !== out) bar.innerHTML = out;
 }
 function tick() {
   tickRun(); tickFocus();
