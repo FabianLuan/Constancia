@@ -911,7 +911,7 @@ document.addEventListener('mouseout', () => { tip.hidden = true; }); document.ad
 
 applyTheme(); render(); tick(); setInterval(tick, 1000); setTimeout(() => { planLocal(); if (isNative()) window.ConstanciaSync.local.perm().then(v => { if (/prompt/.test(v)) ACT.lreq(); }); }, 1500);
 let lastDay = today(); setInterval(() => { if (today() !== lastDay) { lastDay = today(); cache.clear(); U.day = lastDay; render(); planLocal(); } }, 60000);
-try { if (!window.Capacitor && 'serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost') && window.top === window && document.querySelector('link[rel="manifest"]')) navigator.serviceWorker.register('sw.js'); } catch (e) { }
+try { if ((!window.Capacitor || /\.web\.app$/.test(location.hostname)) && 'serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost') && window.top === window && document.querySelector('link[rel="manifest"]')) navigator.serviceWorker.register('sw.js'); } catch (e) { }
 window.Constancia = {
   back() { if (U.sheet) { ACT.close(); return true; } if (U.zen) { ACT.zenx(); return true; } if (U.tab !== 'hoy') { ACT.tab({ t: 'hoy' }); return true; } return false; },
   resume() { if (today() !== lastDay) { if (U.day === lastDay) U.day = today(); lastDay = today(); } cache.clear(); U.lperm = null; render(); planLocal(); },

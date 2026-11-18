@@ -2,8 +2,17 @@
   "appId": "cl.constancia.app",
   "appName": "Constancia",
   "webDir": "public",
-  "android": { "allowMixedContent": false },
+  "android": {
+    "allowMixedContent": false
+  },
   "plugins": {
-    "LocalNotifications": { "smallIcon": "ic_stat_constancia", "iconColor": "#17734A" }
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_constancia",
+      "iconColor": "#17734A"
+    }
+  },
+  "server": {
+    "url": "https://constancia-habit-tracker.web.app",
+    "cleartext": false
   }
 }
